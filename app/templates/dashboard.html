@@ -1,0 +1,117 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Dashboard
+{% endblock %}
+
+{% block main %}
+<div class="container">
+
+    <div class="mb-5 text-start text-center">
+        <h2 class="fw-light">Welcome, <span class="fw-bold">{{ user }}</span>!</h2>
+    </div>
+
+    <div class="mb-4" id="session-container">
+        <h1 class="mb-3" id="sessions-title">My Active Session</h1>
+
+        {% if game_session and game_session.active %}
+            <div id="active-session-card">
+                <div class="card text-start shadow-sm bg-dark text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">Session ID: {{ game_session.id }}</h5>
+                        <p class="card-text" id="category-{{ game_session.id }}">Category: {{ game_session.category }}</p>
+                        {% if game_session.host_username == user %}
+                            <p class="text-success">You are the <strong>Host</strong></p>
+                        {% else %}
+                            <p>Host: {{ game_session.host_username }}</p>
+                        {% endif %}
+                        <p id="player-count-{{ game_session.id }}">Players: {{ game_session.user_count }}/{{ game_session.players }}</p>
+
+                        <div class="mt-auto pt-3 d-flex flex-column gap-2">
+                            {% if game_session.host_username == user %}
+                                <!-- Enter Session (Host) -->
+                                    <a href="{{ url_for('host_lobby', session_id=game_session.id) }}" class="btn btn-primary w-100">Enter Session</a>
+
+                                <!-- Delete Session -->
+                                <form action="{{ url_for('delete_session', session_id=game_session.id) }}" method="post">
+                                    <input type="hidden" name="next" value="{{ url_for('dashboard') }}">
+                                    <button type="submit" class="btn btn-danger w-100">Delete Session</button>
+                                </form>
+                            {% else %}
+                                <!-- Enter Session (Participant) -->
+                                <a href="{{ url_for('waiting_area', session_id=game_session.id) }}" class="btn btn-primary w-100">Enter Session</a>
+
+                                <!-- Leave Session -->
+                                <form action="{{ url_for('leave_session', session_id=game_session.id) }}" method="post">
+                                    <input type="hidden" name="next" value="{{ url_for('dashboard') }}">
+                                    <button type="submit" class="btn btn-warning w-100">Leave Session</button>
+                                </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div id="no-session-message">
+                <p class="mt-2">No active sessions available.</p>
+                <a href="{{ url_for('sessions') }}" class="btn btn-outline-info mt-3">Find a Session</a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if error %}
+    <div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+<script>
+    // Global socket: shows all sessions and updates
+    const globalSocket = new WebSocket(`ws://${window.location.host}/ws/sessions`);
+
+    globalSocket.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+        
+        if (data.type === "session_update") {
+            const payload = data.payload;
+
+            if (payload.player_count) {
+                const pc = payload.player_count;
+                const playerCount = document.getElementById(`player-count-${pc.session_id}`);
+                if (playerCount) {
+                    playerCount.textContent = `Players: ${pc.user_count}/${pc.max_players}`;
+                }
+            }
+        }
+
+        if (data.type === "session_details_updated") {
+            const sessionCategory = document.getElementById(`category-${data.session_id}`);
+            const playerCount = document.getElementById(`player-count-${data.session_id}`);
+            if (sessionCategory) {
+                sessionCategory.textContent = `Category: ${data.new_category}`;
+            }
+            if (playerCount) {
+                playerCount.textContent = `Players: ${data.user_count}/${data.new_max_players}`;
+            }
+        }
+
+        if (data.type === "session_deactivated") {
+            const sessionCard = document.getElementById("active-session-card");
+            if (sessionCard) sessionCard.remove();
+            const noSessionMessage = document.getElementById("no-session-message");
+
+
+            if (!document.getElementById("no-session-message")) {
+                const container = document.getElementById("session-container");
+                const msg = document.createElement("div");
+                msg.id = "no-session-message";
+                msg.className = "text-center mt-3";
+                msg.innerHTML = `
+                    <p class="mb-3">No active sessions available.</p>
+                    <a href="/sessions" class="btn btn-outline-info">Find a Session</a>
+                `;
+                container.appendChild(msg);
+            }
+        }
+    };
+</script>
+{% endblock %}

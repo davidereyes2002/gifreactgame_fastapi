@@ -1,0 +1,1159 @@
+<!-- game.html -->
+{% extends "layout.html" %}
+{% block title %}Game Page{% endblock %}
+
+{% block main %}
+<body 
+  data-username="{{ username }}" 
+  data-session-id="{{ session_id }}" 
+  data-round="{{ round }}" 
+  data-is-host="{{ is_host }}"
+  data-user-count="{{ user_count }}"
+  data-round-start-at="{{ round_start_at }}"
+  data-round-end-at="{{ round_end_at }}"
+  data-user-has-submitted="{{ 'true' if user_has_submitted else 'false' }}" 
+  data-user-has-voted="{{ 'true' if user_has_voted else 'false' }}"
+  data-round-state="{{ round_state }}"
+  data-all-gifs-submitted="{{ 'true' if all_gifs_submitted else 'false' }}"
+  data-submitted-gifs='{{ submitted_gifs | tojson }}'
+  data-votes-cast="{{ votes_cast }}"
+  data-all-votes-submitted="{{ 'true' if all_votes_submitted else 'false' }}"
+  data-round-results='{{ round_results | tojson }}'
+  data-round-winners='{{ round_winners | tojson }}'
+  data-winners='{{ winners | tojson }}'
+  data-leaderboard='{{ leaderboard | tojson }}'>
+</body>
+
+<!-- 👥 Players Joined (Horizontal) -->
+<div class="container mb-1">
+    <div class="bg-dark text-white p-2 rounded shadow-sm">
+        <h5 class="fw-semibold mb-6">Players</h5>
+        <div id="player-list" class="d-flex flex-wrap gap-3 justify-content-start">
+            {% for player in users %}
+                <div class="d-flex align-items-center gap-2 px-2 py-1 rounded-pill bg-secondary text-white small" data-username="{{ player.username }}">
+                    {% set status = presence.get(player.username, "offline") %}
+                    {% if status == "game_page" %}
+                        {% if player.is_host %}
+                            <i class="bi bi-person-fill text-warning"></i> <i class="bi bi-check-circle-fill text-success"></i>
+                        {% else %}
+                            <i class="bi bi-check-circle-fill text-success"></i>
+                        {% endif %}
+                    {% else %}
+                        <i class="bi bi-x-circle-fill text-danger"></i>
+                    {% endif %}
+                    <span>{{ player.username }}{% if player.is_host %}<em>(Host)</em>{% endif %}</span>
+                    <span class="small text-light">Score: {{ player.score }}</span>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+{% if is_host %}
+<div id="pause-button-div" class="text-center mb-1">
+    <button id="pause-button" class="btn btn-danger">Pause Game</button>
+</div>
+{% endif %}
+
+<div id="countdown" class="container text-center py-1" style="font-size: 2em;">
+    {% if round_state == 'paused' %}
+        ⏸️ Round paused due to a disconnect.
+    {% endif %}
+</div>
+
+<div id="loading-screen" class="text-center py-5">
+    <div class="spinner-border text-primary mb-3" role="status"></div>
+    <h4 id="loading-message">Loading...</h4>
+</div>
+
+<div id="toast-container" class="position-fixed top-0 end-0 p-3" style="z-index: 9999;"></div>
+
+<!-- Main game content -->
+<div id="game-contents" class="container py-1">
+    <div id="title" class="text-center mb-4">
+        <h1 id="current-sentence" class="display-4 fw-bold text-primary">{{ current_sentence }}</h1>
+        <p class="lead">⏳ One submission only! Your first selection will be locked in.</p>
+    </div>
+
+    <!-- 🔍 GIF Search -->
+    <div id="gif-search" class="input-group mb-4"">
+        <input type="text" id="search-input" class="form-control form-control-lg" placeholder="Search for GIFs...">
+        <button id="search-btn" class="btn btn-primary btn-lg">Search</button>
+    </div>
+
+    <!-- 🖼️ GIFs Rendered Here -->
+    <div id="gif-container" class="mb-5"></div>
+
+    <div id="submitted-gifs" class="container py-3">
+        <h3 id="submitted-gifs-title" class="text-center mb-3">{{ 'Vote for the Funniest GIF (not your own)' if round_state == 'voting' else 'Submitted GIFs' }}</h3>
+        <div id="submitted-gif-grid" class="row g-4 mt-4 justify-content-center"></div>
+    </div>
+
+    <div id="round-results" class="container py-4">
+        <h2 id="round-winners-list" class="text-center mb-3"></h2>
+        <h3 class="text-center mb-3">🏆 Round Results</h3>
+        <div id="results-gif-grid" class="row g-3 justify-content-center"></div>
+
+        <!-- 📊 Voting Scoreboard -->
+        <div class="table-responsive mt-4">
+            <table class="table table-bordered text-center shadow-sm bg-white">
+                <thead class="table-primary">
+                    <tr>
+                        <th>User</th>
+                        <th>Votes Received</th>
+                    </tr>
+                </thead>
+                <tbody id="results-table-body">
+                    <!-- Will be filled dynamically -->
+                </tbody>
+            </table>
+        </div>
+
+        {% if is_host %}
+        <div class="text-center mt-3">
+            <button id="next-round-button" class="btn btn-success btn-lg">Start Next Round</button>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div id="game-over-screen" class="container py-5 text-center" style="display: none;">
+    <h2 class="text-success mb-4">🎉 Game Over!</h2>
+    <h3 id="game-over-winners" class="mb-4"></h3>
+
+    <h4 class="mt-4">🏅 Final Leaderboard</h4>
+    <div class="table-responsive mt-3">
+        <table class="table table-bordered table-striped shadow-sm bg-white">
+            <thead class="table-success">
+                <tr>
+                    <th>Player</th>
+                    <th>Score</th>
+                </tr>
+            </thead>
+            <tbody id="game-over-leaderboard">
+                <!-- Filled by JS -->
+            </tbody>
+        </table>
+    </div>
+    <div class="text-center mt-3">
+        <a href="{{ url_for('sessions') }}" class="btn btn-primary">Back to Sessions</a>
+    </div>
+</div>
+
+<script>
+const body = document.body;
+
+const currentUsername = body.dataset.username;
+const sessionId = body.dataset.sessionId;
+let round = body.dataset.round;
+const isHost = body.dataset.isHost === "True";
+const userCount = body.dataset.userCount;
+let roundStartAt = body.dataset.roundStartAt;
+let roundEndAt = body.dataset.roundEndAt;
+let roundEndTime = roundEndAt ? new Date(roundEndAt).getTime() : null;
+let hasSubmitted = body.dataset.userHasSubmitted === "true";
+let hasVoted = body.dataset.userHasVoted === "true";
+let currentRoundState = body.dataset.roundState;
+let allGifsSubmitted = body.dataset.allGifsSubmitted === "true";
+let submittedGifs = JSON.parse(body.dataset.submittedGifs || "[]");
+let votesCast = parseInt(body.dataset.votesCast || "0");
+let allVotesSubmitted = body.dataset.allVotesSubmitted === "true";
+let roundResults = JSON.parse(body.dataset.roundResults || "[]");
+let roundWinners = JSON.parse(body.dataset.roundWinners || "[]");
+let winners = JSON.parse(body.dataset.winners || "[]");
+let leaderboard = JSON.parse(body.dataset.leaderboard || "[]");
+
+let selectedGifUrl = null;
+let roundStarted = false;
+let roundPaused = false;
+let lastStartAt = null;
+let lastEndAt = null;
+let isGamePausing = false;
+let isGameOver = false;
+let countdownInterval = null;
+let roundTimerInterval = null;
+let lastRoundState = null;
+let lastPlayersReady = null;
+
+let sessionSocket;
+
+const pauseButtonDiv = document.getElementById("pause-button-div");
+
+const countdownDiv = document.getElementById("countdown");
+
+const loadingScreen = document.getElementById("loading-screen");
+const loadingMessage = document.getElementById("loading-message");
+
+const gameContents = document.getElementById("game-contents");
+
+const mainTitle = document.getElementById("main-title");
+const currentSentence = document.getElementById("current-sentence");
+
+const gifSearch = document.getElementById("gif-search");
+const searchInput = document.getElementById("search-input");
+const searchButton = document.getElementById("search-btn");
+
+const gifContainer = document.getElementById("gif-container");
+
+const submittedGifsContainer = document.getElementById("submitted-gifs");
+const submittedGifGrid = document.getElementById("submitted-gif-grid");
+const submittedGifsTitle = document.getElementById("submitted-gifs-title");
+
+const roundResultsDiv = document.getElementById("round-results");
+const resultsGifGrid = document.getElementById("results-gif-grid");
+const resultsTableBody = document.getElementById("results-table-body");
+
+const nextRoundButton = document.getElementById("next-round-button");
+
+// --------------------------- INIT ---------------------------
+document.addEventListener("DOMContentLoaded", () => {
+    setupPauseButton();
+    setupGifSearchHandlers();
+    setupWebSocket();
+    setupPresenceHeartbeat();
+    setupNextRoundButton();
+
+    lastStartAt = null;
+    lastEndAt = null;
+
+    initializeRoundUI(currentRoundState);
+});
+
+// ------------------------ ROUND INIT ------------------------
+
+function initializeRoundUI(state) {
+    switch (state) {
+        case "idle":
+            showLoadingScreen("Waiting for users to load the game..."); // hides game contents
+            if (pauseButtonDiv) {
+                pauseButtonDiv.style.display = "none";
+            }
+            gifSearch.style.display = "";
+            gifContainer.style.display = "";
+            submittedGifsContainer.style.display = "none";
+            roundResultsDiv.style.display = "none";
+            break;
+        case "started":
+            handleStartRound(roundStartAt, roundEndAt);
+            break;
+        case "paused":
+            showPauseMessage();
+            showLoadingScreen("A player has disconnected from the game page.");
+            gifSearch.style.display = "";
+            gifContainer.style.display = "";
+            submittedGifsContainer.style.display = "none";
+            roundResultsDiv.style.display = "none";
+            break;
+        case "voting":
+            loadingScreen.style.display = "none";
+            gameContents.style.display = "block";
+            hideGifSearchUI();
+            renderSubmittedGifs(submittedGifs)
+            renderVotingUI();
+            roundResultsDiv.style.display = "none";
+            break;
+        case "results":
+            showRoundResults(roundWinners, roundResults);
+            break;
+        case "ended":
+            // Round ended, but waiting for host to start next round
+            roundStarted = false;
+            roundPaused = false;
+            msg = isHost ? "Preparing next round..." : "Waiting for host to start next round...";
+            showLoadingScreen(msg);
+            hideGameSections(); // 🔧 hide gif/vote UI, results etc.
+            break;
+        case "new_round":
+            roundStarted = false;
+            roundPaused = false;
+            pauseButtonDiv.style.display = "none";
+            showLoadingScreen("New round will start soon!")
+            break;
+        case "game_over":
+            showGameOverScreen(winners, leaderboard);         
+            break;  
+        // default:
+        //     showLoadingScreen("Loading...");
+    }
+}
+
+// ---------------------- PRESENCE & WS ----------------------
+
+function setupWebSocket() {
+    sessionSocket = new WebSocket(`ws://${window.location.host}/ws/session_${sessionId}`);
+
+    sessionSocket.addEventListener("open", () => sendPresenceUpdate("game_page"));
+
+    sessionSocket.addEventListener("message", event => {
+        const data = JSON.parse(event.data);
+        switch (data.type) {
+            case "gif_submissions":
+                if (!hasSubmitted) return; 
+                if (Array.isArray(data.submissions)) {
+                    renderSubmittedGifs(data.submissions); // shows the submittedGifsContainer
+                }
+                body.dataset.submittedGifs = JSON.stringify(data.submissions || "[]");
+                submittedGifs = data.submissions
+                break;
+            case "game_paused":
+                handleGamePauseCountdown(data.pause_at);
+                break;
+            case "start_round":
+                handleStartRound(data.start_at, data.end_at);
+                roundStartAt = data.start_at;
+                roundEndAt = data.end_at;
+                break;
+            case "pause_round":
+                showPauseMessage();
+                break;
+            case "session_update":
+                handleSessionUpdate(data.payload);
+                break;
+            case "start_voting":
+                if (roundTimerInterval) {
+                    clearInterval(roundTimerInterval);
+                    roundTimerInterval = null;
+                }
+
+                renderVotingUI();
+                break;
+            case "results":
+                roundWinners = data.round_winners;
+                roundResults = data.round_results;
+                showRoundResults(data.round_winners, data.round_results);
+                break;
+            case "round_ended":
+                handleRoundEnded(data.next_round);
+                break;
+            case "new_round":
+                handleNewRound(data.round, data.next_round_sentence, data.next_round_state);
+                break;
+            case "game_over":
+                winners = data.winners;
+                leaderboard = data.leaderboard;
+                showNotification("🏆 Game over!");
+                showGameOverScreen(data.winners || [], data.leaderboard || []);
+                break;
+        }
+    });
+}
+
+function setupPresenceHeartbeat() {
+    sendPresenceUpdate("game_page");
+    setInterval(() => sendPresenceUpdate("game_page"), 10000);
+}
+
+function sendPresenceUpdate(page) {
+    if (sessionSocket.readyState === WebSocket.OPEN) {
+        sessionSocket.send(JSON.stringify({
+            type: "presence_update",
+            username: currentUsername,
+            page: page
+        }));
+    }
+}
+
+// ------------------------- ROUND FLOW ------------------------
+
+function handleSessionUpdate(payload = {}) {
+    const { max_players = 0, players = [], presence = {}, round_state, round_start_at, round_end_at, round_results, round_winners } = payload;
+    const playersReady = updatePlayerList(players, presence);
+    handleRoundStateChange({ playersReady, maxPlayers: max_players, roundState: round_state, roundStartAt: round_start_at, roundEndAt: round_end_at, roundResults: round_results, roundWinners: round_winners });
+}
+
+function handleRoundStateChange({ playersReady, maxPlayers, roundState, roundStartAt, roundEndAt, roundResults, roundWinners }) {
+    if (lastRoundState === roundState && lastPlayersReady === playersReady) return;
+    lastRoundState = roundState;
+    lastPlayersReady = playersReady;
+
+    const allReady = playersReady === maxPlayers;
+    if (isGamePausing) return;
+
+    if (allReady) {
+        switch (roundState) {
+            case "idle":
+            case "paused":
+            case "new_round":
+                if (!roundStarted) {
+                    // roundStarted = true;
+                    countdownDiv.textContent = "";
+                    showLoadingScreen("All players are ready! Starting round...");
+                    fetch(`/start-round/${sessionId}/${round}`, { method: "POST" });
+                }
+                break;
+            case "started":
+                handleStartRound(roundStartAt, roundEndAt);
+                break;
+            case "voting":
+                if (roundTimerInterval) {
+                    clearInterval(roundTimerInterval);
+                    roundTimerInterval = null;
+                }
+
+                loadingScreen.style.display = "none";
+                gameContents.style.display = "block";
+                hideGifSearchUI();
+                renderSubmittedGifs(submittedGifs);
+                renderVotingUI();
+                roundResultsDiv.style.display = "none";
+                break;
+            case "results":
+                showRoundResults(roundWinners, roundResults);
+                break;
+            case "ended":
+                // Round ended, but waiting for host to start next round
+                roundStarted = false;
+                roundPaused = false;
+                hideGameSections(); // 🔧 hide gif/vote UI, results etc.
+                msg = isHost ? "Preparing next round..." : "Waiting for host to start next round...";
+                showLoadingScreen(msg);
+                break;
+            case "game_over":
+                showGameOverScreen(winners, leaderboard);
+                break;
+        }
+    } else {
+        switch (roundState) {
+            case "idle":
+                if (roundStarted || roundPaused) {
+                    roundStarted = false;
+                    roundPaused = false;
+                }
+
+                showLoadingScreen("Waiting for users to load the game...");
+                break;
+            case "started":
+                if (!roundPaused) {
+                    roundPaused = true;
+                    fetch(`/pause-round/${sessionId}/${round}`, { method: "POST" });
+                }
+                if (countdownInterval) {
+                    clearInterval(countdownInterval);
+                    countdownInterval = null;
+                }
+                if (roundTimerInterval) {
+                    clearInterval(roundTimerInterval);
+                    roundTimerInterval = null;
+                }
+                showPauseMessage();
+                showLoadingScreen("A player has disconnected from the game page.");
+                break;
+            case "paused":
+                roundStarted = false;
+                roundPaused = true;
+                if (countdownInterval) {
+                    clearInterval(countdownInterval);
+                    countdownInterval = null;
+                }
+                if (roundTimerInterval) {
+                    clearInterval(roundTimerInterval);
+                    roundTimerInterval = null;
+                }
+                showPauseMessage();
+                showLoadingScreen("A player has disconnected from the game page.");
+                break;
+            case "voting":
+                if (roundTimerInterval) {
+                    clearInterval(roundTimerInterval);
+                    roundTimerInterval = null;
+                }
+
+                loadingScreen.style.display = "none";
+                gameContents.style.display = "block";
+                hideGifSearchUI();
+                renderSubmittedGifs(submittedGifs);
+                renderVotingUI();
+                roundResultsDiv.style.display = "none";
+                break;
+            case "results":
+                showRoundResults(roundWinners, roundResults);
+                break;
+            case "ended":
+                // Round ended, but waiting for host to start next round
+                roundStarted = false;
+                roundPaused = false;
+                hideGameSections(); // 🔧 hide gif/vote UI, results etc.
+                msg = isHost ? "Preparing next round..." : "Waiting for host to start next round...";
+                showLoadingScreen(msg);
+                break;
+            case "new_round":
+                roundStarted = false;
+                roundPaused = false;
+                showLoadingScreen("New round will start soon once all players are on the game page!")
+                break;
+            case "game_over":
+                showGameOverScreen(winners, leaderboard);
+                break;
+        }
+    }
+}
+
+function handleStartRound(startAtStr, endAtStr) {
+    console.log("[handleStartRound]", {
+        startAtStr, endAtStr, now: new Date(), roundStarted, lastStartAt, lastEndAt
+    });
+
+    if (!startAtStr) return;
+
+    const startAt = new Date(startAtStr).getTime();
+    const endAt = new Date(endAtStr).getTime();
+    const now = Date.now();
+    const secondsLeft = Math.ceil((startAt - now) / 1000);
+
+    const isSameTiming = (startAtStr === lastStartAt && endAtStr === lastEndAt);
+    if (isSameTiming && roundStarted && now >= startAt) return; // skip only if already running
+
+    lastStartAt = startAtStr;
+    lastEndAt = endAtStr;
+    roundStarted = true;
+    roundPaused = false;
+
+    if (countdownInterval) clearInterval(countdownInterval);
+    if (roundTimerInterval) clearInterval(roundTimerInterval);
+
+    if (now < startAt) {
+        // Still before round start, show countdown
+        countdownDiv.classList.add("text-light", "fs-3", "mt-4");
+        countdownInterval = setInterval(() => {
+            const now = Date.now();
+            const remaining = Math.ceil((startAt - now) / 1000);
+            if (remaining > 0) {
+                countdownDiv.textContent = `Round starts in ${remaining}...`;
+                showLoadingScreen("All players are ready! Starting round...");
+            } else {
+                clearInterval(countdownInterval);
+                countdownDiv.textContent = "";
+                roundStarted = true;
+                showRoundUI(endAt);
+            }
+        }, 250);
+    } else {
+        // Already started, skip countdown
+        countdownDiv.textContent = "";
+        roundStarted = true;
+        showRoundUI(endAt);
+    }
+}
+
+
+function handleGamePauseCountdown(pauseAtStr) {
+    isGamePausing = true;
+    if (roundTimerInterval) {
+        clearInterval(roundTimerInterval);
+        roundTimerInterval = null;
+    }
+
+    const pauseAt = new Date(pauseAtStr).getTime();
+    const interval = setInterval(() => {
+        const now = Date.now();
+        const secondsLeft = Math.ceil((pauseAt - now) / 1000);
+        if (secondsLeft > 0) {
+            countdownDiv.textContent = `Game pausing in ${secondsLeft}...`;
+        } else {
+            clearInterval(interval);
+            const dest = isHost ? `/host-lobby/${sessionId}` : `/waiting-area/${sessionId}`;
+            window.isInternalTransition = true;
+            window.location.href = dest;
+        }
+    }, 250);
+}
+
+function showPauseMessage() {
+    if (countdownInterval) clearInterval(countdownInterval);
+    countdownDiv.textContent = "⏸️ Round paused due to a disconnect.";
+}
+
+// ----------------------- UI UTILS -----------------------
+function showRoundUI(endAtTimestamp) {
+    if (pauseButtonDiv) {
+        pauseButtonDiv.style.display = "";
+    }
+
+    submittedGifsTitle.innerText = "Submitted GIFs"
+
+    loadingScreen.style.display = "none";
+    gameContents.style.display = "block";
+
+    if (hasSubmitted) {
+        hideGifSearchUI();
+        renderSubmittedGifs(submittedGifs);
+        roundResultsDiv.style.display = "none";
+    } else {
+        searchInput.value = "";
+        gifContainer.innerHTML = "";
+
+        gifSearch.style.display = "";
+        gifContainer.style.display = "";
+        submittedGifsContainer.style.display = "none";
+        roundResultsDiv.style.display = "none";
+    }
+
+    // 🎯 Show timer countdown
+    const endAt = new Date(endAtTimestamp).getTime();
+    countdownDiv.classList.add("text-light", "fs-3", "mt-3");
+    roundTimerInterval = setInterval(() => {
+        const now = Date.now();
+        const remaining = Math.max(0, Math.ceil((endAt - now) / 1000));
+        countdownDiv.textContent = `Time left: ${remaining}s`;
+        if (remaining <= 0) {
+            clearInterval(roundTimerInterval);
+            countdownDiv.textContent = "Time's up!";
+            if (!hasSubmitted) {
+                submitNullGif();
+            }
+        }
+    }, 1000);
+}
+
+function showLoadingScreen(msg = "") {
+    loadingScreen.style.display = "block";
+    gameContents.style.display = "none";
+    loadingMessage.textContent = msg;
+}
+
+function hideGifSearchUI() {
+    gifSearch.style.display = "none";
+    gifContainer.style.display = "none";
+}
+
+function hideGameSections() {
+    if (pauseButtonDiv) {
+        pauseButtonDiv.style.display = "none";
+    }
+    gameContents.style.display = "none";
+    submittedGifsContainer.style.display = "none";
+    gifSearchContainer.style.display = "none";
+    votingContainer.style.display = "none";
+    roundResultsDiv.style.display = "none";
+    countdownDiv.textContent = "";
+}
+
+
+function updatePlayerList(players = [], presence = {}) {
+    const container = document.getElementById("player-list");
+    if (!container) return;
+
+    const existing = {};
+    [...container.children].forEach(div => {
+        const key = div.dataset.username;
+        if (key) existing[key] = div;
+    });
+
+    const updated = new Set();
+    let readyCount = 0;
+
+    players.forEach(player => {
+        const username = player.username;
+        const isHost = player.is_host;
+        const score = player.score;
+        const page = presence[username] || "offline";
+
+        let icon = page === "game_page"
+            ? isHost
+                ? `<i class="bi bi-person-fill text-warning"></i> <i class="bi bi-check-circle-fill text-success"></i>`
+                : `<i class="bi bi-check-circle-fill text-success"></i>`
+            : `<i class="bi ${["host_lobby", "waiting_area"].includes(page) ? "bi-house-exclamation text-warning" : "bi-x-circle-fill text-danger"}"></i>`;
+
+        if (page === "game_page") readyCount++;
+
+        const html = `${icon} <span>${username}${isHost ? "<em>(Host)</em>" : ""}</span>
+                      <span class="small text-light">Score: ${score}</span>`;
+
+        let div = existing[username];
+        if (!div) {
+            div = document.createElement("div");
+            div.className = "d-flex align-items-center gap-2 px-2 py-1 rounded-pill bg-secondary text-white small";
+            div.dataset.username = username;
+            container.appendChild(div);
+        }
+
+        div.innerHTML = html;
+        updated.add(username);
+    });
+
+    Object.keys(existing).forEach(username => {
+        if (!updated.has(username)) container.removeChild(existing[username]);
+    });
+
+    return readyCount;
+}
+
+function showNotification(message) {
+    const container = document.getElementById("toast-container");
+    const toast = document.createElement("div");
+    toast.className = "alert alert-info shadow-sm mb-2";
+    toast.textContent = message;
+    container.appendChild(toast);
+
+    setTimeout(() => {
+        toast.remove();
+    }, 3000);
+}
+
+// ------------------ GIF Search & Submit ------------------
+function setupPauseButton() {
+    const pauseBtn = document.getElementById("pause-button");
+    if (!pauseBtn) return;
+    pauseBtn.addEventListener("click", async () => {
+        try {
+            const res = await fetch(`/pause-game/${sessionId}`, { method: "POST" });
+            const result = await res.json();
+            if (result.status !== "paused") alert("⚠️ Pause failed.");
+        } catch (err) {
+            alert("⚠️ Pause failed.");
+        }
+    });
+}
+
+function setupGifSearchHandlers() {
+    if (!searchInput || !searchButton) return;
+
+    searchButton.addEventListener("click", () => {
+        const query = searchInput.value.trim();
+        if (query) searchGifs(query);
+    });
+
+    searchInput.addEventListener("keydown", e => {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            searchButton.click();
+        }
+    });
+}
+
+function searchGifs(query) {
+    fetch(`/search-gifs?query=${encodeURIComponent(query)}`)
+        .then(res => res.json())
+        .then(data => renderGifSelectionUI(data.gifs, query));
+}
+
+function renderGifSelectionUI(gifs, query) {
+    gifContainer.innerHTML = `<h2 class="text-center mb-3 text-primary">Search Results for "${query}"</h2>`;
+
+    const grid = document.createElement("div");
+    grid.className = "row g-4 justify-content-center";
+    gifContainer.appendChild(grid);
+
+    const submitBtn = document.createElement("button");
+    submitBtn.className = "btn btn-success btn-lg px-5 mt-4";
+    submitBtn.textContent = "Submit";
+    submitBtn.disabled = true;
+
+    gifs.forEach(gif => {
+        const col = document.createElement("div");
+        col.className = "col-md-3 col-sm-4";
+
+        const card = document.createElement("div");
+        card.className = "card gif-card text-center shadow-sm";
+        card.style.cursor = "pointer";
+
+        const img = document.createElement("img");
+        img.src = gif.images.fixed_width_small.url;
+        img.className = "card-img-top";
+
+        const body = document.createElement("div");
+        body.className = "card-body";
+
+        const selectBtn = document.createElement("button");
+        selectBtn.className = "btn btn-outline-primary";
+        selectBtn.textContent = "Select";
+
+        selectBtn.addEventListener("click", () => {
+            document.querySelectorAll('.gif-card').forEach(c => c.classList.remove('selected'));
+            document.querySelectorAll('.btn-outline-primary').forEach(b => b.classList.remove('bg-primary', 'text-white'));
+            card.classList.add('selected');
+            selectBtn.classList.add('bg-primary', 'text-white');
+            selectedGifUrl = gif.images.fixed_width_small.url;
+            submitBtn.disabled = false;
+        });
+
+        body.appendChild(selectBtn);
+        card.appendChild(img);
+        card.appendChild(body);
+        col.appendChild(card);
+        grid.appendChild(col);
+    });
+
+    submitBtn.addEventListener("click", () => handleGifSubmission(selectedGifUrl, submitBtn));
+    gifContainer.appendChild(submitBtn);
+}
+
+function handleGifSubmission(url, btn) {
+    const formData = new FormData();
+    formData.append("selected_gif", url);
+
+    fetch(`/save-gif/${sessionId}/${round}`, {
+        method: "POST",
+        body: formData
+    }).then(res => res.json())
+      .then(data => {
+        if (data.status === "success") {
+            hideGifSearchUI();
+
+            body.dataset.userHasSubmitted = "true";
+            hasSubmitted = true;
+            body.dataset.submittedGifs = JSON.stringify(data.submissions || "[]");
+            submittedGifs = data.submissions;
+
+            renderSubmittedGifs(data.submissions); // shows the submittedGifsContainer
+            roundResultsDiv.style.display = "none";
+            if (data.all_submitted) {
+                renderVotingUI();
+            }
+        } else if (data.status === "already_submitted") {
+            showNotification("❌ Already submitted")
+        } else {
+            showNotification("❌ Submission failed.");
+        }
+    });
+}
+
+function submitNullGif() {
+    if (!sessionId || round === undefined || round === null) return;
+
+    fetch(`/save-gif/${sessionId}/${round}`, {
+        method: "POST",
+        body: new FormData(), // no selected_gif key
+        credentials: "include"
+    }).then(res => res.json())
+      .then(data => {
+        if (data.status === "success") {
+            console.log("Auto-submitted null GIF:", data);
+
+            hideGifSearchUI();
+            body.dataset.userHasSubmitted = "true";
+            hasSubmitted = true;
+            body.dataset.submittedGifs = JSON.stringify(data.submissions || "[]");
+            submittedGifs = data.submissions;
+
+            renderSubmittedGifs(data.submissions);
+            roundResultsDiv.style.display = "none";
+            if (data.all_submitted) {
+                renderVotingUI();
+            }
+        } else if (data.status === "already_submitted") {
+            showNotification("❌ Already submitted")
+        } else {
+            showNotification("❌ Submission failed.");
+        }
+    })
+    .catch(err => {
+        console.error("Error auto-submitting null gif:", err);
+    });
+}
+
+function renderSubmittedGifs(submissions) {  // shows the submittedGifsContainer
+    submittedGifGrid.innerHTML = "";
+
+    submissions.forEach(({ username, gif_url, is_null }) => {
+        if (is_null) return;
+
+        const card = createGifCard(username, gif_url);
+        submittedGifGrid.appendChild(card);
+    });
+
+    submittedGifsContainer.style.display = "block";
+}
+
+function createGifCard(username, gif_url) {
+    const card = document.createElement("div");
+    card.className = "col-md-3 col-sm-4";
+    card.innerHTML = `
+        <div class="card shadow-sm border text-center">
+            <img src="${gif_url}" class="card-img-top" alt="GIF by ${username}">
+            <div class="card-body">
+                <p class="card-text fw-semibold">${username}</p>
+            </div>
+        </div>
+    `;
+    return card;
+}
+
+// -------------------- Voting Logic ----------------------
+function submitVote(targetUsername) {
+    const formData = new FormData();
+    formData.append("voted_for_user", targetUsername);
+
+    fetch(`/vote/${sessionId}/${round}`, {
+        method: "POST",
+        body: formData
+    }).then(res => res.json())
+      .then(data => {
+        if (data.status === "success") {
+            showNotification(`You voted for ${targetUsername}`);
+            document.querySelectorAll(".vote-button").forEach(btn => btn.disabled = true);
+            body.dataset.userHasVoted = "true";
+            hasVoted = true;
+
+            // Fallback for the final voter to show results if broadcast missed
+            if (data.all_voted) {
+                roundWinners = data.round_winners;
+                roundResults = data.round_results;
+                showRoundResults(roundWinners, roundResults);
+            } else {
+                showLoadingScreen("Waiting for all users to submit their votes...");
+            }
+        } else {
+            alert("⚠️ Vote failed or already voted.");
+        }
+      });
+}
+
+function renderVotingUI() {
+    if (currentRoundState === "results") return;
+    countdownDiv.textContent = "";
+    if (!hasVoted) {
+        submittedGifsTitle.innerText = "Vote for the Funniest GIF (not your own)";
+        showVotingInterface();
+        gameContents.style.display = "block";
+        loadingScreen.style.display = "none";
+    } else {
+        showLoadingScreen("Waiting for all users to submit their votes...");
+    }
+}
+
+function showVotingInterface() {
+    const cards = submittedGifGrid.querySelectorAll(".card");
+    cards.forEach(card => {
+        const username = card.querySelector(".card-text")?.textContent;
+        if (username === currentUsername) return;
+
+        const cardBody = card.querySelector(".card-body");
+        if (!cardBody.querySelector(".vote-button")) {
+            const btn = document.createElement("button");
+            btn.className = "btn btn-outline-success mt-2 vote-button";
+            btn.textContent = "Vote";
+            btn.addEventListener("click", () => submitVote(username));
+            cardBody.appendChild(btn);
+        }
+    });
+}
+
+// ------------------ Results ------------------
+function showRoundResults(winners = [], results = []) {
+    if (!Array.isArray(winners) || !Array.isArray(results)) {
+        console.warn("Invalid round results or winners:", winners, results);
+        return;
+    }
+
+    resultsTableBody.innerHTML = "";
+    const winnersText = winners.length > 1
+        ? `The winners are ${winners.join(", ")}`
+        : winners.length === 1
+            ? `The winner is ${winners[0]}`
+            : "No winner this round";
+    document.getElementById("round-winners-list").textContent = winnersText;
+    
+    results.forEach(({ username, votes }) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+            <td>${username}</td>
+            <td>${votes}</td>
+        `;
+        if (winners.includes(username)) {
+            row.classList.add("table-success");
+        }
+        resultsTableBody.appendChild(row);
+    });
+
+    if (pauseButtonDiv) {
+        pauseButtonDiv.style.display = "none";
+    }
+    loadingScreen.style.display = "none";
+    gameContents.style.display = "block";
+    hideGifSearchUI();
+    submittedGifsContainer.style.display = "none";
+    roundResultsDiv.style.display = "block";
+}
+
+// ------------------ Next Round ------------------
+function setupNextRoundButton() {
+    if (!nextRoundButton) return;
+
+    nextRoundButton.addEventListener("click", async () => {
+        nextRoundButton.disabled = true;
+        nextRoundButton.textContent = "Starting...";
+
+        showLoadingScreen("Preparing next round...");
+        gifSearch.style.display = "";
+        gifContainer.style.display = "";
+        searchInput.value = "";
+        gifContainer.innerHTML = "";
+        submittedGifsContainer.style.display = "none";
+        roundResultsDiv.style.display = "none";
+
+        try {
+            const response = await fetch(`/next-round/${sessionId}/${round}`, {
+                method: "POST"
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.status === "next_round_started") {
+                const newRound = data.round;
+                const newRoundState = data.state || "idle";
+
+                showNotification("Next round is starting...");
+
+                // ✅ Update round state
+                round = newRound;
+                roundStartAt = null;
+                roundEndAt = null;
+                hasSubmitted = false;
+                hasVoted = false;
+                currentRoundState = newRoundState;
+                allGifsSubmitted = false;
+                submittedGifs = [];
+                votesCast = 0;
+                allVotesSubmitted = false;
+                roundResults = [];
+                roundWinners = [];
+
+                selectedGifUrl = null;
+                roundStarted = false;
+                roundPaused = false;
+                lastStartAt = null;
+                lastEndAt = null;
+                countdownInterval = null;
+                roundTimerInterval = null;
+                lastRoundState = null;
+                lastPlayersReady = null;
+
+                // ✅ Update body dataset for page reload compatibility
+                body.dataset.round = newRound;
+                body.dataset.roundStartAt = null;
+                body.dataset.roundEndAt = null;
+                body.dataset.userHasSubmitted = "false";
+                body.dataset.userHasVoted = "false";
+                body.dataset.roundState = newRoundState;
+                body.dataset.allGifsSubmitted = "false";
+                body.dataset.submittedGifs = "[]";
+                body.dataset.votesCast = "0";
+                body.dataset.roundResults = "[]";
+                body.dataset.roundWinners = "[]";
+                body.dataset.allVotesSubmitted = "false";
+                body.dataset.roundResults = "[]";
+                body.dataset.roundWinners = "[]";
+
+                nextRoundButton.disabled = false;
+                nextRoundButton.textContent = "Start Next Round";
+            } else if (data.status === "game_over") {
+                showNotification("🏆 Game over!");
+                winners = data.winners;
+                leaderboard = data.leaderboard;
+                showGameOverScreen(data.winners || [], data.leaderboard || []);
+            } else {
+                alert(`⚠️ ${data.error || "Failed to start next round."}`);
+                nextRoundButton.disabled = false;
+                nextRoundButton.textContent = "Start Next Round";
+                loadingScreen.style.display = "none";
+                gameContents.style.display = "block";
+            }
+        } catch (err) {
+            console.error("Error starting next round:", err);
+            alert("⚠️ Could not start next round.");
+            nextRoundButton.disabled = false;
+            nextRoundButton.textContent = "Start Next Round";
+            loadingScreen.style.display = "none";
+            gameContents.style.display = "block";
+        }
+    });
+}
+
+function handleRoundEnded(nextRoundNumber) {
+    currentRoundState = "ended";
+    body.dataset.roundState = "ended";
+    
+    msg = isHost ? "Preparing next round..." : "Waiting for host to start next round...";
+    showLoadingScreen(msg);
+
+    roundResultsDiv.style.display = "none";
+    submittedGifsContainer.style.display = "none";
+
+    round = nextRoundNumber;
+    body.dataset.round = nextRoundNumber;
+}
+
+function handleNewRound(roundNumber, nextRoundSentence, nextRoundState) {
+    currentSentence.textContent = `${nextRoundSentence}`;
+
+    // Reset all round-specific variables and dataset
+    round = roundNumber;
+    roundStartAt = null;
+    roundEndAt = null;
+    hasSubmitted = false;
+    hasVoted = false;
+    currentRoundState = nextRoundState;
+    allGifsSubmitted = false;
+    submittedGifs = [];
+    votesCast = 0;
+    allVotesSubmitted = false;
+    roundResults = [];
+    roundWinners = [];
+
+    selectedGifUrl = null;
+    roundStarted = false;
+    roundPaused = false;
+    lastStartAt = null;
+    lastEndAt = null;
+    countdownInterval = null;
+    roundTimerInterval = null;
+    lastRoundState = null;
+    lastPlayersReady = null;
+
+    body.dataset.round = roundNumber;
+    body.dataset.roundStartAt = null;
+    body.dataset.roundEndAt = null;
+    body.dataset.userHasSubmitted = "false";
+    body.dataset.userHasVoted = "false";
+    body.dataset.roundState = nextRoundState;
+    body.dataset.allGifsSubmitted = "false";
+    body.dataset.submittedGifs = "[]";
+    body.dataset.votesCast = "0";
+    body.dataset.roundResults = "[]";
+    body.dataset.roundWinners = "[]";
+    body.dataset.allVotesSubmitted = "false";
+    body.dataset.roundResults = "[]";
+    body.dataset.roundWinners = "[]";
+
+    gameContents.style.display = "none";
+    gifSearch.style.display = "";
+    gifContainer.style.display = "";
+    searchInput.value = "";
+    gifContainer.innerHTML = "";
+}
+
+// ------------------ Game Over ------------------
+function showGameOverScreen(winners = [], leaderboard = []) {
+    const winnersText = winners.length === 1
+        ? `🏆 The winner is <strong>${winners[0]}</strong>`
+        : `🏆 The winners are <strong>${winners.join(", ")}</strong>`;
+
+    document.getElementById("game-over-winners").innerHTML = winnersText;
+
+    const leaderboardBody = document.getElementById("game-over-leaderboard");
+    leaderboardBody.innerHTML = "";
+
+    leaderboard.forEach(({ username, score }) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+            <td>${username}</td>
+            <td>${score}</td>
+        `;
+        leaderboardBody.appendChild(row);
+    });
+
+    if (pauseButtonDiv) {
+        pauseButtonDiv.style.display = "none";
+    }
+    loadingScreen.style.display = "none";
+    gameContents.style.display = "none";
+    roundResultsDiv.style.display = "none";
+    submittedGifsContainer.style.display = "none";
+    document.getElementById("game-over-screen").style.display = "block";
+
+    body.dataset.roundState = "game_over";
+}
+
+</script>
+{% endblock %}

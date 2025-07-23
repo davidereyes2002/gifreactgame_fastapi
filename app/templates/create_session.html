@@ -1,0 +1,100 @@
+<!-- join_session.html -->
+{% extends "layout.html" %}
+
+{% block title %}
+    Create Session
+{% endblock %}
+
+{% block main %}
+<div class="container d-flex flex-column justify-content-center align-items-center" style="min-height: 80vh;">
+    <div class="card bg-dark text-white shadow-sm p-4" style="max-width: 500px; width: 100%;">
+        <h2 class="text-center mb-4 fw-bold text-gradient">Create a New Session</h2>
+        <form action="/create-session" method="post" class="needs-validation" novalidate>
+            
+            <!-- Category Dropdown -->
+            <div class="mb-3">
+                <label for="category" class="form-label fw-semibold">Select Game Category</label>
+                <select class="form-select bg-secondary text-white border-0" id="category" name="category" required>
+                    <option value="">-- Choose a Category --</option>
+                    <option value="animals">Animals</option>
+                    <option value="memes">Memes</option>
+                    <option value="movies">Movies</option>
+                    <option value="reactions">Reactions</option>
+                    <option value="celebrities">Celebrities</option>
+                    <option value="sports">Sports</option>
+                    <option value="gaming">Gaming</option>
+                    <option value="cartoons">Cartoons</option>
+                    <option value="fails">Fails</option>
+                </select>
+            </div>
+
+            <!-- Player Count -->
+            <div class="mb-3">
+                <label for="players" class="form-label fw-semibold">Number of Players</label>
+                <input
+                    type="number"
+                    class="form-control bg-secondary text-white border-0"
+                    id="players"
+                    name="players"
+                    placeholder="Enter between 3 and 8"
+                    min="3"
+                    max="8"
+                    required
+                >
+            </div>
+
+            <!-- Time Per Question -->
+            <div class="mb-3">
+                <label for="time_per_question" class="form-label fw-semibold">Time per Question (in seconds)</label>
+                <input
+                    type="number"
+                    class="form-control bg-secondary text-white border-0"
+                    id="time_per_question"
+                    name="time_per_question"
+                    placeholder="5 to 60 seconds"
+                    min="5"
+                    max="60"
+                    step="5"
+                    required
+                >
+            </div>
+
+            <!-- Points to Win -->
+            <div class="mb-3">
+                <label for="points_to_win" class="form-label fw-semibold">Points to Win</label>
+                <input
+                    type="number"
+                    class="form-control bg-secondary text-white border-0"
+                    id="points_to_win"
+                    name="points_to_win"
+                    placeholder="E.g., 5, 10, 15..."
+                    min="1"
+                    max="10"
+                    step="1"
+                    required
+                >
+            </div>
+
+            <!-- Submit -->
+            <button type="submit" class="btn btn-primary w-100 fw-semibold">Create Game Session</button>
+        </form>
+    </div>
+</div>
+
+{% if error %}
+    <div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+<script>
+document.querySelector("form").addEventListener("submit", function (e) {
+    const form = e.target;
+
+    if (!form.checkValidity()) {
+        e.preventDefault(); // Stop form from submitting
+        form.classList.add("was-validated"); // Bootstrap helper class for styling
+    }
+});
+</script>
+{% endblock %}
+
+

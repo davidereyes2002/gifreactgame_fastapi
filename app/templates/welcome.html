@@ -1,0 +1,67 @@
+<!-- File: welcome.html -->
+{% extends "layout.html" %}
+
+{% block title %}
+    Welcome
+{% endblock %}
+
+{% block main %}
+<div class="container py-5">
+
+    <!-- Hero Section -->
+    <div class="text-center mb-5">
+        <h1 class="display-4 fw-bold text-gradient" id="main-title">GIF Reaction Game 🎉</h1>
+        <p class="lead">React. Laugh. Compete. Express yourself with GIFs!</p>
+        <a href="/login" class="btn btn-primary btn-lg mx-2">Log In</a>
+        <a href="/register" class="btn btn-outline-light btn-lg mx-2">Register</a>
+    </div>
+
+    <!-- GIF Preview Section -->
+    <div class="mb-5">
+        <h3 class="text-center mb-4">What It Looks Like</h3>
+        <div class="row g-4 justify-content-center">
+            <div class="col-12 col-sm-6 col-md-4">
+                <div class="welcome-gif-card h-100">
+                    <div class="welcome-gif-wrapper">
+                        <img src="https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExa3pvbjNnN3U4cGZzM3VrMjRsaXFpYTU4bWFhY3ViaWloaXRkdHIyNyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/xTiN0CNHgoRf1Ha7CM/giphy.gif" alt="Excited Reaction">
+                        
+                    </div>
+                    <p class="text-center mt-2">Excited</p>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-md-4">
+                <div class="welcome-gif-card h-100">
+                    <div class="welcome-gif-wrapper">
+                        <img src="https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExZWxyYjVrb2M2YWVxcHdlNDE4b3Q2Ym16ZDg4ZzhzcXE5aDI1bW1uNyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/jivGITd768psP80B2i/giphy.gif" alt="Shocked Reaction">
+                    </div>
+                    <p class="text-center mt-2">Shocked</p>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-md-4">
+                <div class="welcome-gif-card h-100">
+                    <div class="welcome-gif-wrapper">
+                        <img src="https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExb2pvc3J1Ym96anIxb253ejBtNzc1M2NhM2phMXp6amE5bjVjejJxaCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/yNvPaHz8LI4I4jKKws/giphy.gif" alt="Happy Reaction">
+                    </div>
+                    <p class="text-center mt-2">Happy</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- How to Play -->
+    <div class="row justify-content-center text-center mb-5">
+        <div class="col-md-8">
+            <h3>How to Play</h3>
+            <p>Once you log in, choose a category and join a game session. You'll be shown a scenario, and you must pick the perfect GIF to react. Compete for points and laughs with friends!</p>
+        </div>
+    </div>
+
+    <!-- About the Game -->
+    <div class="row justify-content-center text-center">
+        <div class="col-md-8">
+            <h3>About the Game</h3>
+            <p>The GIF Reaction Game is built for quick fun, social interaction, and hilarity. Whether you're playing with strangers or close friends, it's about expressing emotion creatively. Explore different categories and be the reaction king or queen!</p>
+        </div>
+    </div>
+{% endblock %}

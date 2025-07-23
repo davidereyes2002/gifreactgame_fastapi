@@ -1,0 +1,171 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Join Session
+{% endblock %}
+
+{% block main %}
+<div class="container-fluid">
+    <div class="mb-4 px-4" id="sessions-wrapper">
+        <h1 class="mb-3 text-center" id="sessions-title">Join a Session</h1>
+
+        {% if sessions %}
+            <div id="sessions-div" class="row g-4 justify-content-center">
+                {% for game_session in sessions %}
+                <div class="col-12 col-md-6 col-lg-5 d-flex" id="session-card-{{ game_session.id }}">
+                    <div class="card text-start shadow-sm bg-dark text-white w-100 h-100 d-flex flex-column">
+                        <div class="card-body d-flex flex-column justify-content-between">
+                            <h5 class="card-title">Session ID: {{ game_session.id }}</h5>
+                            <p class="card-text" id="category-{{ game_session.id }}">Category: {{ game_session.category }}</p>
+                            <p>Host: {{ game_session.host_username }}</p>
+                            <p id="player-count-{{ game_session.id }}">Players: {{ game_session.user_count }}/{{ game_session.players }}</p>
+                            <!-- Add more session details as needed -->
+                            <div class="mt-auto pt-3 d-flex flex-column gap-2">
+                                {% if game_session.user_in %}
+                                    {% if game_session.host_username == user %}
+                                        <!-- Enter Session (Host) -->
+                                            <a href="{{ url_for('host_lobby', session_id=game_session.id) }}" class="btn btn-primary w-100">Enter Session</a>
+
+                                        <!-- Delete Session -->
+                                        <form action="{{ url_for('delete_session', session_id=game_session.id) }}" method="post">
+                                            <input type="hidden" name="next" value="{{ url_for('sessions') }}">
+                                            <button type="submit" class="btn btn-danger w-100">Delete Session</button>
+                                        </form>
+                                    {% else %}
+                                        <!-- Enter Session (Participant) -->
+                                        <a href="{{ url_for('waiting_area', session_id=game_session.id) }}" class="btn btn-primary w-100">Enter Session</a>
+
+                                        <!-- Leave Session -->
+                                        <form action="{{ url_for('leave_session', session_id=game_session.id) }}" method="post">
+                                            <input type="hidden" name="next" value="{{ url_for('sessions') }}">
+                                            <button type="submit" class="btn btn-warning w-100">Leave Session</button>
+                                        </form>
+                                    {% endif %}
+                                {% else %}
+                                    <!-- Join Session -->
+                                    <form action="{{ url_for('join_session', session_id=game_session.id) }}" method="post">
+                                        <button type="submit" class="btn btn-primary w-100">Join Session</button>
+                                    </form>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div id="no-sessions-message">
+                <p class="mt-2 text-center">No active sessions available.</p>
+                <a href="{{ url_for('create_session') }}" class="btn btn-success">Create a Session</a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if error %}
+    <div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+<script>
+    // Global socket: shows all sessions and updates
+    const globalSocket = new WebSocket(`ws://${window.location.host}/ws/sessions`);
+
+    globalSocket.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+
+        if (data.type === "session_created") {
+            const session = data.session;
+            addSessionCard(session);
+        }
+
+        if (["session_deleted", "session_deactivated"].includes(data.type)) {
+            const card = document.getElementById(`session-card-${data.session_id}`);
+            if (card) card.remove();
+
+            const sessionDiv = document.getElementById("sessions-div");
+            const remainingCards = sessionDiv ? sessionDiv.querySelectorAll("[id^='session-card-']") : [];
+            if (remainingCards.length === 0) {
+                if (sessionDiv) sessionDiv.remove();
+
+                if (!document.getElementById("no-sessions-message")) {
+                    const wrapper = document.getElementById("sessions-wrapper");
+                    const msg = document.createElement("div");
+                    msg.id = "no-sessions-message";
+                    msg.innerHTML = `
+                        <p class="mt-2 text-center">No active sessions available.</p>
+                        <a href="/create-session" class="btn btn-success">Create a Session</a>
+                    `;
+                    wrapper.appendChild(msg);
+                }
+            }
+        }
+
+        if (data.type === "session_update") {
+            const payload = data.payload;
+
+            if (payload.player_count) {
+                const pc = payload.player_count;
+                const playerCount = document.getElementById(`player-count-${pc.session_id}`);
+                if (playerCount) {
+                    playerCount.textContent = `Players: ${pc.user_count}/${pc.max_players}`;
+                }
+            }
+        }
+
+        if (data.type === "session_details_updated") {
+            const sessionCategory = document.getElementById(`category-${data.session_id}`);
+            const playerCount = document.getElementById(`player-count-${data.session_id}`);
+            if (sessionCategory) {
+                sessionCategory.textContent = `Category: ${data.new_category}`;
+            }
+            if (playerCount) {
+                playerCount.textContent = `Players: ${data.user_count}/${data.new_max_players}`;
+            }
+        }
+    };
+
+    // Add new session card to the main sessions listing
+    function addSessionCard(session) {
+        const noSessions = document.getElementById("no-sessions-message");
+        if (noSessions) noSessions.remove();
+        
+        let container = document.getElementById("sessions-div");
+        if (!container) {
+            const wrapper = document.getElementById("sessions-wrapper");
+            const title = document.getElementById("sessions-title");
+            
+            container = document.createElement("div");
+            container.id = "sessions-div";
+            container.className = "row g-4 justify-content-center";
+
+            if (title && title.parentNode === wrapper) {
+                wrapper.insertBefore(container, title.nextSibling);
+            } else {
+                wrapper.appendChild(container);
+            }
+        }
+
+        const card = document.createElement("div");
+        card.className = "col-12 col-md-6 col-lg-5 d-flex";
+        card.id = `session-card-${session.id}`;
+        card.innerHTML = `
+            <div class="card text-start shadow-sm bg-dark text-white w-100 h-100 d-flex flex-column">
+                <div class="card-body d-flex flex-column justify-content-between" id="session-${session.id}">
+                    <h5 class="card-title">Session ID: ${session.id}</h5>
+                    <p class="card-text" id="category-${session.id}">Category: ${session.category}</p>
+                    <p>Host: ${session.host_username || "Unknown"}</p>
+                    <p id="player-count-${session.id}">Players: ${session.players_current}/${session.max_players}</p>
+                    <div class="mt-auto pt-3 d-flex flex-column gap-2">
+                        <form action="/join/${session.id}" method="post">
+                            <button type="submit" class="btn btn-primary w-100">Join Session</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        `;
+        container.prepend(card);
+    }
+</script>
+
+
+{% endblock %}

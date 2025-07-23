@@ -1,0 +1,41 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Game History
+{% endblock %}
+
+{% block main %}
+    <div class="container-fluid">
+        <div class="mb-4 px-4">
+            <h1 class="mb-3 text-center">My Old Sessions</h1>
+
+            {% if old_game_sessions %}
+                <div class="row g-4 justify-content-center">
+                    {% for old_game_session in old_game_sessions %}
+                    <div class="col-12 col-md-6 col-lg-5 d-flex">
+                        <div class="card session-card text-white w-100 h-100 d-flex flex-column shadow-sm">
+                            <div class="card-body d-flex flex-column justify-content-between" id="session-{{ old_game_session.id }}">
+                                <h5 class="card-title">Session #{{ old_game_session.id }}</h5>
+                                <p class="card-text mb-2"><strong>Category:</strong> {{ old_game_session.category }}</p>
+                                
+                                {% if old_game_session.winners %}
+                                    <div class="mt-3">
+                                        <p class="fw-bold mb-2">Winner{{ old_game_session.winners|length > 1 and 's' or '' }}:</p>
+                                        {% for winner in old_game_session.winners %}
+                                            <span class="winner-badge">{{ winner }}</span>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <p class="text-muted mt-3">No winner declared for this session.</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="text-muted text-center">No old sessions available.</p>
+            {% endif %}
+        </div>
+    </div>
+{% endblock %}

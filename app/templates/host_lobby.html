@@ -1,0 +1,402 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Host Lobby
+{% endblock %}
+
+{% block main %}
+<body data-username="{{ user }}" data-session-id="{{ game_session.id }}" data-is-paused="{{ is_paused }}"></body>
+
+<div class="container py-3">
+    <!-- 👑 Host Header -->
+    <div class="w-100 text-center">
+        <h1 class="display-6 fw-bold text-gradient">👑 You're the Host</h1>
+        <p class="text-light fs-6">You control when the game starts.</p>
+    </div>
+
+    <div class="row g-4 justify-content-center">
+        <!-- 🎮 Game Session Details -->
+        <div class="col-md-7">
+            <div class="card bg-dark text-white shadow border-light h-100">
+                <div class="card-body">
+                    <h3 class="card-title mb-3 fw-semibold">Game Session Details</h3>
+
+                    <!-- View Mode -->
+                    <div id="view-session-details">
+                        <p><strong>Session ID:</strong> {{ game_session.id }}</p>
+                        <p id="category-{{ game_session.id }}"><strong>Category:</strong> {{ game_session.category }}</p>
+                        <p id='player-count-{{ game_session.id }}'>
+                            <strong>Players:</strong> {{ user_count }}/{{ game_session.players }}
+                        </p>
+                        <p id="time-{{ game_session.id }}"><strong>Time per Question:</strong> {{ game_session.time_per_question }} seconds</p>
+                        <p id="points-{{ game_session.id }}"><strong>Points to Win:</strong> {{ game_session.points_to_win }}</p>
+                        <button class="btn btn-outline-light mt-3" onclick="toggleEdit(true)">Edit</button>
+                    </div>
+
+                    <!-- Edit Mode (Hidden by Default) -->
+                    <form id="edit-session-form" class="d-none" method="post" action="/submit-changes/{{ game_session.id }}">
+                        <!-- Category -->
+                        <div class="mb-1">
+                            <label for="category" class="form-label fw-semibold">Select Game Category</label>
+                            <select class="form-select bg-secondary text-white border-0" id="category" name="category" required>
+                                <option value="">-- Choose a Category --</option>
+                                {% for cat in ['animals', 'memes', 'movies', 'reactions', 'celebrities', 'sports', 'gaming', 'cartoons', 'fails'] %}
+                                    <option value="{{ cat }}" {% if cat == game_session.category %}selected{% endif %}>{{ cat|capitalize }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Players -->
+                        <div class="mb-1">
+                            <label for="players" class="form-label fw-semibold">Number of Players</label>
+                            <input type="number" class="form-control bg-secondary text-white border-0" name="players" min="3" max="8" required value="{{ game_session.players }}">
+                        </div>
+
+                        <!-- Time per Question -->
+                        <div class="mb-1">
+                            <label for="time_per_question" class="form-label fw-semibold">Time per Question (seconds)</label>
+                            <input type="number" class="form-control bg-secondary text-white border-0" name="time_per_question" min="5" max="60" step="5" required value="{{ game_session.time_per_question }}">
+                        </div>
+
+                        <!-- Points to Win -->
+                        <div class="mb-2">
+                            <label for="points_to_win" class="form-label fw-semibold">Points to Win</label>
+                            <input type="number" class="form-control bg-secondary text-white border-0" name="points_to_win" min="1" max="10" step="1" required value="{{ game_session.points_to_win }}">
+                        </div>
+
+                        <!-- Buttons -->
+                        <div class="d-flex gap-1">
+                            <button type="submit" class="btn btn-success w-100 fw-semibold">Submit Changes</button>
+                            <button type="button" class="btn btn-secondary w-100 fw-semibold" onclick="toggleEdit(false)">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- 👥 Players Joined -->
+        <div class="col-md-4 col-lg-5">
+            <div class="card bg-dark text-white shadow border-light">
+                <div class="card-body">
+                    <h4 class="card-title fw-semibold">Players Joined</h4>
+                    <ul id="player-list" class="list-group list-group-flush mt-3">
+                        {% for player in users %}
+                            <li class="list-group-item bg-dark text-white border-white d-flex justify-content-between align-items-center" data-username="{{ player.username }}">
+                                <span>{{ player.username }}{% if player.is_host %} <em>(Host)</em>{% endif %}</span>
+                                <span>
+                                    {% set status = presence.get(player.username, "offline") %}
+                                    {% if status == "waiting_area" %}
+                                        <i class="bi bi-check-circle-fill text-success"></i>
+                                    {% elif status == "host_lobby" %}
+                                        <i class="bi bi-person-fill text-warning"></i> <i class="bi bi-check-circle-fill text-success"></i>
+                                    {% elif status == "game_page" %}
+                                        <i class="bi bi-controller text-success"></i>
+                                    {% else %}
+                                        <i class="bi bi-x-circle-fill text-danger"></i>
+                                    {% endif %}
+                                </span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 🕹️ Host Controls -->
+<div id="start-button-container" class="d-flex flex-column align-items-center gap-1">
+    <div id="start-control"></div>
+    
+    <div id="delete-control">
+        {% if users|length == 1 %}
+            <!-- Delete Session -->
+            <form action="{{ url_for('delete_session', session_id=game_session.id) }}" method="post" class="w-100 text-center">
+                <input type="hidden" name="next" value="{{ url_for('sessions') }}">
+                <button type="submit" class="btn btn-danger">Delete Session</button>
+            </form>
+        {% endif %}
+    </div>
+
+    <!-- 🔙 Back Button -->
+    <a href="{{ url_for('sessions') }}" class="btn btn-outline-light">
+        <i class="bi bi-arrow-left"></i> Back to All Sessions
+    </a>
+</div>
+
+<div id="countdown" style="font-size: 2em; text-align: center;"></div>
+
+<div id="toast-container" class="position-fixed top-0 end-0 p-3" style="z-index: 9999;"></div>
+
+{% if error %}
+    <div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+<script>
+    function toggleEdit(enable) {
+        const viewDiv = document.getElementById("view-session-details");
+        const editForm = document.getElementById("edit-session-form");
+
+        if (enable) {
+            viewDiv.classList.add("d-none");
+            editForm.classList.remove("d-none");
+        } else {
+            editForm.classList.add("d-none");
+            viewDiv.classList.remove("d-none");
+        }
+    }
+
+    document.getElementById("edit-session-form").addEventListener("submit", function (e) {
+        const categoryEl = document.getElementById("category");
+        const playersEl = document.querySelector("input[name='players']");
+        const timeEl = document.querySelector("input[name='time_per_question']");
+        const pointsEl = document.querySelector("input[name='points_to_win']");
+
+        const current = {
+            category: "{{ game_session.category }}",
+            players: {{ game_session.players }},
+            time: {{ game_session.time_per_question }},
+            points: {{ game_session.points_to_win }}
+        };
+
+        const selected = {
+            category: categoryEl.value,
+            players: parseInt(playersEl.value),
+            time: parseInt(timeEl.value),
+            points: parseInt(pointsEl.value)
+        };
+
+        const isSame = (
+            current.category === selected.category &&
+            current.players === selected.players &&
+            current.time === selected.time &&
+            current.points === selected.points
+        );
+
+        if (isSame) {
+            e.preventDefault();
+            alert("No changes detected in session settings.");
+        }
+    });
+
+    const countdownDiv = document.getElementById("start-button-container");
+    const currentUsername = document.body.dataset.username;
+    const sessionId = {{ game_session.id }};
+    const sessionSocket = new WebSocket(`ws://${window.location.host}/ws/session_${sessionId}`);
+
+    document.addEventListener("DOMContentLoaded", addStartGameListener);
+
+    sessionSocket.onmessage = function (event) {
+        const data = JSON.parse(event.data);
+
+        if (data.type === "start_game") {
+            const startAt = new Date(data.start_at).getTime();
+
+            const interval = setInterval(() => {
+                const now = new Date().getTime();
+                const secondsLeft = Math.ceil((startAt - now) / 1000);
+
+                if (secondsLeft > 0) {
+                    countdownDiv.textContent = `{{ "Game resuming in" if is_paused else "Game starting in" }} ${secondsLeft}...`;
+                    countdownDiv.classList.add("text-light", "fs-3", "mt-4");
+                } else {
+                    clearInterval(interval);
+                    window.isInternalTransition = true;
+                    window.location.href = `/game/${data.session_id}`;
+                }
+            }, 250);
+        }
+
+        if (data.type === "session_update") {
+            const payload = data.payload || {};
+
+            // Show notifications
+            const triggerUser = payload.trigger_user;
+            const eventType = payload.trigger_event;
+            if (triggerUser !== currentUsername) {
+                const eventMessages = {
+                    joined: `${triggerUser} joined the session`,
+                    left: `${triggerUser} left the session`
+                };
+                if (eventMessages[eventType]) {
+                    showNotification(eventMessages[eventType]);
+                }
+            }
+
+            const maxPlayers = payload.max_players ?? 0;
+            const players = payload.players ?? [];
+            const presence = payload.presence ?? {};
+            const playerListContainer = document.getElementById("player-list");
+            const gamePaused = payload.is_paused;
+            const gameHasBeenStarted = payload.game_has_been_started;
+
+            let playersReady = 0;
+
+            if (playerListContainer) {
+                const existingItems = {};
+
+                [...playerListContainer.children].forEach(li => {
+                    const key = li.dataset.username;
+                    if (key) existingItems[key] = li;
+                });
+
+                const updated = new Set();
+
+                players.forEach(player => {
+                    const username = player.username;
+                    const isHost = player.is_host;
+                    const page = presence[username] || "offline";
+
+                    let presenceIcon = "";
+                    if (page === "waiting_area") {
+                        presenceIcon = '<i class="bi bi-check-circle-fill text-success"></i>';
+                        playersReady++;
+                    } else if (page === "host_lobby") {
+                        presenceIcon = '<i class="bi bi-person-fill text-warning"></i> <i class="bi bi-check-circle-fill text-success"></i>';
+                        playersReady++;
+                    } else if (page === "game_page") {
+                        presenceIcon = '<i class="bi bi-controller text-success"></i>'
+                    } else {
+                        presenceIcon = '<i class="bi bi-x-circle-fill text-danger"></i>';
+                    }
+
+                    const nameHtml = isHost ? `${username} <em>(Host)</em>` : username;
+
+                    let li = existingItems[username];
+                    if (!li) {
+                        li = document.createElement("li");
+                        li.dataset.username = username;
+                        li.className = "list-group-item bg-dark text-white border-white d-flex justify-content-between align-items-center";
+                        playerListContainer.appendChild(li);
+                    }
+
+                    li.innerHTML = `<span>${nameHtml}</span><span>${presenceIcon}</span>`;
+                    updated.add(username);
+                });
+
+                // Remove any li not in updated list
+                Object.keys(existingItems).forEach(username => {
+                    if (!updated.has(username)) {
+                        playerListContainer.removeChild(existingItems[username]);
+                    }
+                });
+            }
+
+            const allReady = playersReady === maxPlayers;
+
+            // Update player count
+            const playerCountEl = document.getElementById(`player-count-${sessionId}`);
+            if (playerCountEl) {
+                playerCountEl.innerHTML = `<strong>Players:</strong> ${players.length}/${maxPlayers}`;
+            }
+
+            // Show/hide delete session button
+            const deleteControl = document.getElementById("delete-control");
+            if (deleteControl) {
+                if (players.length === 1) {
+                    deleteControl.innerHTML = `
+                        <form action="{{ url_for('delete_session', session_id=game_session.id) }}" method="post" class="w-100 text-center">
+                            <input type="hidden" name="next" value="{{ url_for('sessions') }}">
+                            <button type="submit" class="btn btn-danger">Delete Session</button>
+                        </form>`;
+                } else {
+                    deleteControl.innerHTML = "";
+                }
+            }
+
+            // Enable Start Game if all are ready
+            const startControl = document.getElementById("start-control");
+            if (startControl) {
+                if (gamePaused || !gameHasBeenStarted) {
+                    if (allReady && players.length === maxPlayers) {
+                        startControl.innerHTML = `
+                            <button id="start-game-btn" class="btn btn-success btn-lg px-4">
+                                <i class="bi bi-play-fill"></i> {{ "Resume Game" if game_has_been_started else "Start Game" }}
+                            </button>`;
+                        addStartGameListener();
+                    } else {
+                        startControl.innerHTML = `
+                            <p class="text-warning fs-5 text-center">
+                                ⚠️ Waiting for all players to be in their waiting areas (${playersReady}/${maxPlayers})
+                            </p>`;
+                    }
+                } else if (gameHasBeenStarted || !gamePaused) {
+                    startControl.innerHTML = `
+                            <p><strong>You have started the game!</strong></p>
+                            <a href="{{ url_for('game_page', session_id=game_session.id) }}" class="btn btn-primary">Enter Game</a>
+                        `;
+                }
+            }
+        }
+    };
+
+    sessionSocket.onopen = function () {
+        sessionSocket.send(JSON.stringify({
+            type: "presence_update",
+            username: currentUsername,
+            page: "host_lobby"
+        }));
+    };
+
+    setInterval(() => {
+        if (sessionSocket.readyState === WebSocket.OPEN) {
+            sessionSocket.send(JSON.stringify({
+                type: "presence_update",
+                username: currentUsername,
+                page: "host_lobby"
+            }));
+        }
+    }, 10000); // every 10 seconds
+
+    function addStartGameListener() {
+        const btn = document.getElementById("start-game-btn");
+        if (btn) {
+            btn.addEventListener("click", async () => {
+                try {
+                    const res = await fetch(`/start-game/${sessionId}`, {
+                        method: "POST",
+                        headers: {
+                            "X-Requested-With": "XMLHttpRequest",
+                            "Content-Type": "application/json"
+                        }
+                    });
+
+                    if (!res.ok) {
+                        const data = await res.json();
+                        const errorText = data.detail || "Unknown error.";
+                        if (data.players && Array.isArray(data.players)) {
+                            alert(`Error starting game:\n${errorText}\n\nMissing:\n- ${data.players.join("\n- ")}`);
+                        } else {
+                            alert("Error starting game: " + errorText);
+                        }
+                        return;
+                    }
+
+                    countdownDiv.textContent = `{{ "Game resuming" if game_has_been_started else "Game starting" }} in 5...`;
+                    countdownDiv.classList.add("text-light", "fs-3", "mt-4");
+
+                    document.getElementById("start-button-container").style.display = "none";
+
+                } catch (err) {
+                    console.error("Failed to start game:", err);
+                    alert("A network error occurred.");
+                }
+            });
+        }
+    }
+
+    function showNotification(message) {
+        const container = document.getElementById("toast-container");
+        const toast = document.createElement("div");
+        toast.className = "alert alert-info shadow-sm mb-2";
+        toast.textContent = message;
+        container.appendChild(toast);
+
+        setTimeout(() => {
+            toast.remove();
+        }, 3000);
+    }
+</script>
+
+{% endblock %}

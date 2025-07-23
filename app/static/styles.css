@@ -1,0 +1,221 @@
+nav .navbar-brand
+{
+    font-size: xx-large;
+}
+
+body {
+    background-color: black;
+    color: white;
+    font-family: 'Poppins', sans-serif; /* Ensure all text uses Arial or a fallback sans-serif font */
+  }
+
+nav.navbar {
+    background-color: #333; /* Darken the navbar background for contrast */
+  }
+
+nav.navbar .navbar-brand,
+nav.navbar .nav-link {
+    color: white; /* Navbar brand and link text color */
+  }
+
+nav.navbar .nav-link:hover {
+    color: #007bff; /* Hover color for navbar links (blue) */
+  }
+
+  h1 {
+    text-align: center;
+}
+.container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 20px;
+}
+.gif {
+    flex: 1 1 200px; /* Minimum width of 200px for each GIF */
+    max-width: 200px; /* Maximum width of 200px */
+    text-align: center;
+}
+.gif img {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+.back-link {
+    display: block;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.session-card {
+    border: 1px solid #343a40;
+    background: linear-gradient(145deg, #1d1f21, #2a2d2f);
+    border-radius: 16px;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.session-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 0 20px rgba(0, 123, 255, 0.15);
+}
+
+.session-card h5 {
+    color: #0d6efd;
+    font-weight: 600;
+}
+
+.winner-badge {
+    display: inline-block;
+    background-color: #198754;
+    color: white;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.875rem;
+    margin-right: 6px;
+    margin-bottom: 6px;
+}
+
+.text-gradient {
+  background: linear-gradient(45deg, #ff6ec4, #7873f5);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+}
+
+.gif-card {
+    width: 100%;
+    max-width: 180px;
+    margin: 0 auto;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.gif-card.selected {
+    border: 2px solid #0d6efd !important;
+    background-color: #1f2d50 !important;
+    box-shadow: 0 0 12px rgba(13, 110, 253, 0.5);
+}
+
+.gif-card.selected .btn-outline-primary {
+    background-color: #0d6efd;
+    color: white;
+    border-color: #0d6efd;
+}
+
+.btn-outline-primary.bg-primary {
+    background-color: #0d6efd;
+    color: white;
+    border-color: #0d6efd;
+}
+
+.select-btn {
+    background-color: #0d6efd;
+    color: white;
+    font-weight: 600;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    margin-top: 8px;
+    transition: background-color 0.2s ease;
+}
+
+.select-btn:hover {
+    background-color: #0b5ed7;
+}
+
+.gif-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 8px 20px rgba(0, 123, 255, 0.2);
+}
+
+.gif-wrapper {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+}
+
+.gif-wrapper img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.gif-card p {
+    margin: 8px 0 12px 0; /* Tighter and centered */
+    font-weight: 500;
+    color: #f8f9fa;
+}
+
+.navbar-brand {
+    font-weight: bold;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent !important;
+    -webkit-text-fill-color: transparent;
+    transition: background 0.5s ease;
+}
+
+.custom-toast {
+    opacity: 0;
+    transform: translateY(-20px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+/* Fade/slide in */
+.custom-toast.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Fade/slide out */
+.custom-toast.hide {
+    opacity: 0;
+    transform: translateY(-20px);
+}
+
+#game-contents {
+    transition: opacity 0.4s ease-in-out;
+}
+
+.welcome-gif-card {
+    background-color: #1e1e1e;
+    border-radius: 12px;
+    padding: 0;
+    height: 100%;
+    box-shadow: 0 4px 12px rgba(0, 123, 255, 0.1);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.welcome-gif-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 8px 20px rgba(0, 123, 255, 0.2);
+}
+
+.welcome-gif-wrapper {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+}
+
+.welcome-gif-wrapper img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.welcome-gif-card p {
+    margin: 8px 0 12px 0;
+    font-weight: 500;
+    color: #f8f9fa;
+    text-align: center;
+}
+
+

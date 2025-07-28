@@ -90,7 +90,9 @@
 <script>
 const currentUsername = document.body.dataset.username;
 const sessionId = {{ game_session.id }};
-const sessionSocket = new WebSocket(`ws://${window.location.host}/ws/session_${sessionId}`);
+const loc = window.location;
+const wsProtocol = loc.protocol === "https:" ? "wss" : "ws";
+const sessionSocket = new WebSocket(`${wsProtocol}://${loc.host}/ws/session_${sessionId}`);
 
 sessionSocket.onmessage = function (event) {
     const data = JSON.parse(event.data);

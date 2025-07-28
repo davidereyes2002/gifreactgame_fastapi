@@ -280,7 +280,9 @@ function initializeRoundUI(state) {
 // ---------------------- PRESENCE & WS ----------------------
 
 function setupWebSocket() {
-    sessionSocket = new WebSocket(`ws://${window.location.host}/ws/session_${sessionId}`);
+    const loc = window.location;
+    const wsProtocol = loc.protocol === "https:" ? "wss" : "ws";
+    sessionSocket = new WebSocket(`${wsProtocol}://${loc.host}/ws/session_${sessionId}`);
 
     sessionSocket.addEventListener("open", () => sendPresenceUpdate("game_page"));
 

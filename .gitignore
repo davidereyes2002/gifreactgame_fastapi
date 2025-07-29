@@ -18,3 +18,6 @@ Thumbs.db
 
 # VSCode settings
 .vscode/
+
+schema_query.sql
+schema_output.txt

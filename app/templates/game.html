@@ -141,6 +141,21 @@
 </div>
 
 <script>
+let serverClientTimeOffset = 0;
+
+async function syncServerClock() {
+    try {
+        const res = await fetch("/ping-time");
+        const data = await res.json();
+        const serverTime = new Date(data.server_time).getTime();
+        const clientTime = Date.now();
+        serverClientTimeOffset = serverTime - clientTime;
+        console.log("Time offset with server (ms):", serverClientTimeOffset);
+    } catch (err) {
+        console.warn("Could not sync with server time:", err);
+    }
+}
+
 const body = document.body;
 
 const currentUsername = body.dataset.username;
@@ -206,7 +221,8 @@ const resultsTableBody = document.getElementById("results-table-body");
 const nextRoundButton = document.getElementById("next-round-button");
 
 // --------------------------- INIT ---------------------------
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
+    await syncServerClock();
     setupPauseButton();
     setupGifSearchHandlers();
     setupWebSocket();
@@ -497,8 +513,8 @@ function handleStartRound(startAtStr, endAtStr) {
 
     if (!startAtStr) return;
 
-    const startAt = new Date(startAtStr).getTime();
-    const endAt = new Date(endAtStr).getTime();
+    const startAt = new Date(startAtStr).getTime() - serverClientTimeOffset;
+    const endAt = new Date(endAtStr).getTime() - serverClientTimeOffset;
     const now = Date.now();
     const secondsLeft = Math.ceil((startAt - now) / 1000);
 
@@ -540,19 +556,25 @@ function handleStartRound(startAtStr, endAtStr) {
 
 function handleGamePauseCountdown(pauseAtStr) {
     isGamePausing = true;
+
     if (roundTimerInterval) {
         clearInterval(roundTimerInterval);
         roundTimerInterval = null;
     }
 
-    const pauseAt = new Date(pauseAtStr).getTime();
-    const interval = setInterval(() => {
+    const pauseAt = new Date(pauseAtStr).getTime() - serverClientTimeOffset;
+    if (countdownInterval) clearInterval(countdownInterval);
+
+    countdownInterval = setInterval(() => {
         const now = Date.now();
         const secondsLeft = Math.ceil((pauseAt - now) / 1000);
+
         if (secondsLeft > 0) {
             countdownDiv.textContent = `Game pausing in ${secondsLeft}...`;
         } else {
-            clearInterval(interval);
+            clearInterval(countdownInterval);
+            countdownDiv.textContent = "";
+            
             const dest = isHost ? `/host-lobby/${sessionId}` : `/waiting-area/${sessionId}`;
             window.isInternalTransition = true;
             window.location.href = dest;

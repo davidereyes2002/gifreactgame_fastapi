@@ -23,6 +23,10 @@ GIPHY_API_KEY = os.getenv("GIPHY_API_KEY")
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
+@app.get("/ping-time")
+async def ping_time():
+    return {"server_time": datetime.now(timezone.utc).isoformat()}
+
 @router.get("/")
 async def dashboard(request: Request, user: str = Depends(auth_required)):
     # Get user id from users table

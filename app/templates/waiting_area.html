@@ -88,189 +88,20 @@
 {% endif %}
 
 <script>
-const currentUsername = document.body.dataset.username;
-const sessionId = {{ game_session.id }};
-const loc = window.location;
-const wsProtocol = loc.protocol === "https:" ? "wss" : "ws";
-const sessionSocket = new WebSocket(`${wsProtocol}://${loc.host}/ws/session_${sessionId}`);
+let serverClientTimeOffset = 0;
 
-sessionSocket.onmessage = function (event) {
-    const data = JSON.parse(event.data);
-
-    if (data.type === "start_game") {
-        // const allInContainer = document.getElementById("all-in");
-        // allInContainer.innerHTML = "";
-        const countdownDiv = document.getElementById("start-button-container");
-        const startAt = new Date(data.start_at).getTime();
-
-        const interval = setInterval(() => {
-            const now = new Date().getTime();
-            const secondsLeft = Math.ceil((startAt - now) / 1000);
-
-            if (secondsLeft > 0) {
-                countdownDiv.textContent = `Game {{ "resuming" if game_has_been_started else "starting" }} in ${secondsLeft}...`;
-                countdownDiv.classList.add("text-light", "fs-3", "mt-4");
-            } else {
-                clearInterval(interval);
-                window.isInternalTransition = true;
-                window.location.href = `/game/${data.session_id}`;
-            }
-        }, 250);
-        return;
+async function syncServerClock() {
+    try {
+        const res = await fetch("/ping-time");
+        const data = await res.json();
+        const serverTime = new Date(data.server_time).getTime();
+        const clientTime = Date.now();
+        serverClientTimeOffset = serverTime - clientTime;
+        console.log("Time offset with server (ms):", serverClientTimeOffset);
+    } catch (err) {
+        console.warn("Could not sync with server time:", err);
     }
-
-    if (data.type === "session_details_updated") {
-        const sessionCategory = document.getElementById(`category-${data.session_id}`);
-        const playerCount = document.getElementById(`player-count-${data.session_id}`);
-        const sessionTime = document.getElementById(`time-${data.session_id}`);
-        const sessionPoints = document.getElementById(`points-${data.session_id}`);
-
-        if (sessionCategory) {
-            sessionCategory.innerHTML = `<strong>Category:</strong> ${data.new_category}`;
-        }
-        if (playerCount) {
-            playerCount.innerHTML = `<strong>Players:</strong> ${data.user_count}/${data.new_max_players}`;
-        }
-        if (sessionTime) {
-            sessionTime.innerHTML = `<strong>Time per Question:</strong> ${data.new_time_per_question} seconds`;
-        }
-        if (sessionPoints) {
-            sessionPoints.innerHTML = `<strong>Points to Win:</strong> ${data.new_points_to_win}`;
-        }
-
-        showNotification(`Session ${data.session_id} details have changed!`)
-    }
-
-    if (data.type === "session_update") {
-        const payload = data.payload || {};
-
-        // Show notifications
-        const triggerUser = payload.trigger_user;
-        const eventType = payload.trigger_event;
-        if (triggerUser !== currentUsername) {
-            const eventMessages = {
-                joined: `${triggerUser} joined the session`,
-                left: `${triggerUser} left the session`
-            };
-            if (eventMessages[eventType]) {
-                showNotification(eventMessages[eventType]);
-            }
-        }
-
-        // Update player list with DOM diffing
-        const players = payload.players ?? [];
-        const presence = payload.presence ?? {};
-        const maxPlayers = payload.max_players ?? 0;
-        const playerListContainer = document.getElementById("player-list");
-        const gamePaused = payload.is_paused;
-        const gameHasBeenStarted = payload.game_has_been_started;
-
-        if (playerListContainer) {
-            const existingItems = {};
-            [...playerListContainer.children].forEach(li => {
-                const key = li.dataset.username;
-                if (key) existingItems[key] = li;
-            });
-
-            const updated = new Set();
-            let playersReady = 0;
-
-            players.forEach(player => {
-                const username = player.username;
-                const isHost = player.is_host;
-                const page = presence[username] || "offline";
-                let presenceIcon = "";
-
-                if (page === "waiting_area") {
-                    presenceIcon = '<i class="bi bi-check-circle-fill text-success"></i>';
-                    playersReady++;
-                } else if (page === "host_lobby") {
-                    presenceIcon = '<i class="bi bi-person-fill text-warning"></i> <i class="bi bi-check-circle-fill text-success"></i>';
-                    playersReady++;
-                } else if (page === "game_page") {
-                    presenceIcon = '<i class="bi bi-controller text-success"></i>'
-                } else {
-                    presenceIcon = '<i class="bi bi-x-circle-fill text-danger"></i>';
-                }
-
-                const nameHtml = isHost ? `${username} <em>(Host)</em>` : username;
-
-                let li = existingItems[username];
-                if (!li) {
-                    li = document.createElement("li");
-                    li.dataset.username = username;
-                    li.className = "list-group-item bg-dark text-white border-white d-flex justify-content-between align-items-center";
-                    playerListContainer.appendChild(li);
-                }
-
-                li.innerHTML = `<span>${nameHtml}</span><span>${presenceIcon}</span>`;
-                updated.add(username);
-            });
-
-            // Remove old players no longer in the list
-            Object.keys(existingItems).forEach(username => {
-                if (!updated.has(username)) {
-                    playerListContainer.removeChild(existingItems[username]);
-                }
-            });
-
-            // Update player status text
-            const allInContainer = document.getElementById("all-in");
-            const leaveControl = document.getElementById("leave-control");
-            if (allInContainer) {
-                if (gamePaused || !gameHasBeenStarted) {
-                    if (playersReady === maxPlayers && players.length === maxPlayers) {
-                        allInContainer.innerHTML = `
-                            <p class="text-warning fs-5 text-center">
-                                ⚠️ Waiting for host to {{"resume" if game_has_been_started else "start" }} the game
-                            </p>`;
-                        leaveControl.innerHTML = `
-                            <form action="{{ url_for('leave_session', session_id=game_session.id) }}" method="post">
-                                <input type="hidden" name="next" value="{{ url_for('sessions') }}">
-                                <button type="submit" class="btn btn-warning">Leave Session</button>
-                            </form>`;
-                    } else {
-                        allInContainer.innerHTML = `
-                            <p class="text-warning fs-5 text-center">
-                                ⚠️ Waiting for all players to be in their waiting areas (${playersReady}/${maxPlayers})
-                            </p>`;
-                        leaveControl.innerHTML = `
-                            <form action="{{ url_for('leave_session', session_id=game_session.id) }}" method="post">
-                                <input type="hidden" name="next" value="{{ url_for('sessions') }}">
-                                <button type="submit" class="btn btn-warning">Leave Session</button>
-                            </form>`;
-                    }
-                } else if (gameHasBeenStarted || !gamePaused) {
-                    allInContainer.innerHTML = "";
-                    leaveControl.innerHTML = `
-                            <p><strong>Game has started!</strong></p>
-                            <a href="{{ url_for('game_page', session_id=game_session.id) }}" class="btn btn-primary">Enter Game</a>
-                        `;
-                }
-                
-            }
-        }
-    }
-};
-
-// Send presence when connected
-sessionSocket.onopen = function () {
-    sessionSocket.send(JSON.stringify({
-        type: "presence_update",
-        username: currentUsername,
-        page: "waiting_area"
-    }));
-};
-
-setInterval(() => {
-        if (sessionSocket.readyState === WebSocket.OPEN) {
-            sessionSocket.send(JSON.stringify({
-                type: "presence_update",
-                username: currentUsername,
-                page: "waiting_area"
-            }));
-        }
-    }, 10000); // every 10 seconds
+}
 
 function showNotification(message) {
     const container = document.getElementById("toast-container");
@@ -283,5 +114,194 @@ function showNotification(message) {
         toast.remove();
     }, 3000);
 }
+
+const currentUsername = document.body.dataset.username;
+const sessionId = {{ game_session.id }};
+const loc = window.location;
+const wsProtocol = loc.protocol === "https:" ? "wss" : "ws";
+
+async function start() {
+    await syncServerClock();
+
+    const sessionSocket = new WebSocket(`${wsProtocol}://${loc.host}/ws/session_${sessionId}`);
+
+    sessionSocket.onmessage = function (event) {
+        const data = JSON.parse(event.data);
+
+        if (data.type === "start_game") {
+            const countdownDiv = document.getElementById("start-button-container");
+            const serverStartAt = new Date(data.start_at).getTime();
+            const adjustedStartAt = serverStartAt - serverClientTimeOffset;
+
+            const interval = setInterval(() => {
+                const now = Date.now();
+                const secondsLeft = Math.ceil((adjustedStartAt - now) / 1000);
+
+                if (secondsLeft > 0) {
+                    countdownDiv.textContent = `Game {{ "resuming" if game_has_been_started else "starting" }} in ${secondsLeft}...`;
+                    countdownDiv.classList.add("text-light", "fs-3", "mt-4");
+                } else {
+                    clearInterval(interval);
+                    window.isInternalTransition = true;
+                    window.location.href = `/game/${data.session_id}`;
+                }
+            }, 250);
+            return;
+        }
+
+        if (data.type === "session_details_updated") {
+            const sessionCategory = document.getElementById(`category-${data.session_id}`);
+            const playerCount = document.getElementById(`player-count-${data.session_id}`);
+            const sessionTime = document.getElementById(`time-${data.session_id}`);
+            const sessionPoints = document.getElementById(`points-${data.session_id}`);
+
+            if (sessionCategory) {
+                sessionCategory.innerHTML = `<strong>Category:</strong> ${data.new_category}`;
+            }
+            if (playerCount) {
+                playerCount.innerHTML = `<strong>Players:</strong> ${data.user_count}/${data.new_max_players}`;
+            }
+            if (sessionTime) {
+                sessionTime.innerHTML = `<strong>Time per Question:</strong> ${data.new_time_per_question} seconds`;
+            }
+            if (sessionPoints) {
+                sessionPoints.innerHTML = `<strong>Points to Win:</strong> ${data.new_points_to_win}`;
+            }
+
+            showNotification(`Session ${data.session_id} details have changed!`)
+        }
+
+        if (data.type === "session_update") {
+            const payload = data.payload || {};
+
+            // Show notifications
+            const triggerUser = payload.trigger_user;
+            const eventType = payload.trigger_event;
+            if (triggerUser !== currentUsername) {
+                const eventMessages = {
+                    joined: `${triggerUser} joined the session`,
+                    left: `${triggerUser} left the session`
+                };
+                if (eventMessages[eventType]) {
+                    showNotification(eventMessages[eventType]);
+                }
+            }
+
+            // Update player list with DOM diffing
+            const players = payload.players ?? [];
+            const presence = payload.presence ?? {};
+            const maxPlayers = payload.max_players ?? 0;
+            const playerListContainer = document.getElementById("player-list");
+            const gamePaused = payload.is_paused;
+            const gameHasBeenStarted = payload.game_has_been_started;
+
+            if (playerListContainer) {
+                const existingItems = {};
+                [...playerListContainer.children].forEach(li => {
+                    const key = li.dataset.username;
+                    if (key) existingItems[key] = li;
+                });
+
+                const updated = new Set();
+                let playersReady = 0;
+
+                players.forEach(player => {
+                    const username = player.username;
+                    const isHost = player.is_host;
+                    const page = presence[username] || "offline";
+                    let presenceIcon = "";
+
+                    if (page === "waiting_area") {
+                        presenceIcon = '<i class="bi bi-check-circle-fill text-success"></i>';
+                        playersReady++;
+                    } else if (page === "host_lobby") {
+                        presenceIcon = '<i class="bi bi-person-fill text-warning"></i> <i class="bi bi-check-circle-fill text-success"></i>';
+                        playersReady++;
+                    } else if (page === "game_page") {
+                        presenceIcon = '<i class="bi bi-controller text-success"></i>'
+                    } else {
+                        presenceIcon = '<i class="bi bi-x-circle-fill text-danger"></i>';
+                    }
+
+                    const nameHtml = isHost ? `${username} <em>(Host)</em>` : username;
+
+                    let li = existingItems[username];
+                    if (!li) {
+                        li = document.createElement("li");
+                        li.dataset.username = username;
+                        li.className = "list-group-item bg-dark text-white border-white d-flex justify-content-between align-items-center";
+                        playerListContainer.appendChild(li);
+                    }
+
+                    li.innerHTML = `<span>${nameHtml}</span><span>${presenceIcon}</span>`;
+                    updated.add(username);
+                });
+
+                // Remove old players no longer in the list
+                Object.keys(existingItems).forEach(username => {
+                    if (!updated.has(username)) {
+                        playerListContainer.removeChild(existingItems[username]);
+                    }
+                });
+
+                // Update player status text
+                const allInContainer = document.getElementById("all-in");
+                const leaveControl = document.getElementById("leave-control");
+                if (allInContainer) {
+                    if (gamePaused || !gameHasBeenStarted) {
+                        if (playersReady === maxPlayers && players.length === maxPlayers) {
+                            allInContainer.innerHTML = `
+                                <p class="text-warning fs-5 text-center">
+                                    ⚠️ Waiting for host to {{"resume" if game_has_been_started else "start" }} the game
+                                </p>`;
+                            leaveControl.innerHTML = `
+                                <form action="{{ url_for('leave_session', session_id=game_session.id) }}" method="post">
+                                    <input type="hidden" name="next" value="{{ url_for('sessions') }}">
+                                    <button type="submit" class="btn btn-warning">Leave Session</button>
+                                </form>`;
+                        } else {
+                            allInContainer.innerHTML = `
+                                <p class="text-warning fs-5 text-center">
+                                    ⚠️ Waiting for all players to be in their waiting areas (${playersReady}/${maxPlayers})
+                                </p>`;
+                            leaveControl.innerHTML = `
+                                <form action="{{ url_for('leave_session', session_id=game_session.id) }}" method="post">
+                                    <input type="hidden" name="next" value="{{ url_for('sessions') }}">
+                                    <button type="submit" class="btn btn-warning">Leave Session</button>
+                                </form>`;
+                        }
+                    } else if (gameHasBeenStarted || !gamePaused) {
+                        allInContainer.innerHTML = "";
+                        leaveControl.innerHTML = `
+                                <p><strong>Game has started!</strong></p>
+                                <a href="{{ url_for('game_page', session_id=game_session.id) }}" class="btn btn-primary">Enter Game</a>
+                            `;
+                    }
+                    
+                }
+            }
+        }
+    };
+
+    sessionSocket.onopen = function () {
+        sessionSocket.send(JSON.stringify({
+            type: "presence_update",
+            username: currentUsername,
+            page: "waiting_area"
+        }));
+    };
+
+    setInterval(() => {
+        if (sessionSocket.readyState === WebSocket.OPEN) {
+            sessionSocket.send(JSON.stringify({
+                type: "presence_update",
+                username: currentUsername,
+                page: "waiting_area"
+            }));
+        }
+    }, 10000);
+}
+
+start();
 </script>
 {% endblock %}

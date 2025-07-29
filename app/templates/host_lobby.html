@@ -180,6 +180,21 @@
         }
     });
 
+    let serverClientTimeOffset = 0;
+
+    async function syncServerClock() {
+        try {
+            const res = await fetch("/ping-time");
+            const data = await res.json();
+            const serverTime = new Date(data.server_time).getTime();
+            const clientTime = Date.now();
+            serverClientTimeOffset = serverTime - clientTime;
+            console.log("Time offset with server (ms):", serverClientTimeOffset);
+        } catch (err) {
+            console.warn("Could not sync with server time:", err);
+        }
+    }
+
     const countdownDiv = document.getElementById("start-button-container");
     const currentUsername = document.body.dataset.username;
     const sessionId = {{ game_session.id }};
@@ -187,17 +202,21 @@
     const wsProtocol = loc.protocol === "https:" ? "wss" : "ws";
     const sessionSocket = new WebSocket(`${wsProtocol}://${loc.host}/ws/session_${sessionId}`);
 
-    document.addEventListener("DOMContentLoaded", addStartGameListener);
+    document.addEventListener("DOMContentLoaded", async () =>{
+        await syncServerClock();
+        addStartGameListener();
+    });
 
     sessionSocket.onmessage = function (event) {
         const data = JSON.parse(event.data);
 
         if (data.type === "start_game") {
-            const startAt = new Date(data.start_at).getTime();
+            const serverStartAt = new Date(data.start_at).getTime();
+            const adjustedStartAt = serverStartAt - serverClientTimeOffset
 
             const interval = setInterval(() => {
                 const now = new Date().getTime();
-                const secondsLeft = Math.ceil((startAt - now) / 1000);
+                const secondsLeft = Math.ceil((adjustedStartAt - now) / 1000);
 
                 if (secondsLeft > 0) {
                     countdownDiv.textContent = `{{ "Game resuming in" if is_paused else "Game starting in" }} ${secondsLeft}...`;

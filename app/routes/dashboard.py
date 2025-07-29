@@ -23,7 +23,7 @@ GIPHY_API_KEY = os.getenv("GIPHY_API_KEY")
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-@app.get("/ping-time")
+@router.get("/ping-time")
 async def ping_time():
     return {"server_time": datetime.now(timezone.utc).isoformat()}
 

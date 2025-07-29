@@ -73,11 +73,9 @@ A real-time multiplayer game where players respond to prompts with GIFs and vote
 - Realtime: WebSockets
 - Deployment: Render.com
 
-## 🛠️ Local Setup Instructions
+## Local Setup Instructions
 
 Follow these steps to run the project locally on your machine:
-
----
 
 ### 1. Clone the Repository
 
@@ -85,8 +83,6 @@ Follow these steps to run the project locally on your machine:
 git clone https://github.com/davidereyes2002/gifreactgame_fastapi.git
 cd gifreactgame_fastapi
 ```
-
----
 
 ### 2. Create and Activate a Virtual Environment
 
@@ -107,15 +103,11 @@ Activate it:
   venv\Scripts\activate
   ```
 
----
-
 ### 3. Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
-
----
 
 ### 4. Set Up Environment Variables
 
@@ -128,9 +120,7 @@ GIPHY_API_KEY=your_giphy_api_key
 SECRET_KEY=your_secret_key
 ```
 
-> 🔐 **Note:** Never commit your `.env` file to version control.
-
----
+> **Note:** Never commit your `.env` file to version control.
 
 ### 5. Set Up the Database
 
@@ -139,15 +129,11 @@ Ensure PostgreSQL is running, then:
 - Create the database (if not already created)
 - Run the schema setup (see **Database Structure** section below)
 
----
-
 ### 6. Start the Server
 
 ```bash
 uvicorn main:app --reload
 ```
-
----
 
 ### 7. Open in Browser
 
@@ -155,7 +141,7 @@ Visit the app in your browser at:
 
 [http://localhost:8000](http://localhost:8000)
 
-
+---
 
 ## Database Structure
 
@@ -164,6 +150,8 @@ This project uses a PostgreSQL database with the following core tables and relat
 ---
 
 ### Tables and Key Columns
+
+> **Note:** Primary Key (PK) and Foreign Key (FK)
 
 #### `users`
 - **id** (PK): Unique identifier for each user.

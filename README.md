@@ -73,66 +73,88 @@ A real-time multiplayer game where players respond to prompts with GIFs and vote
 - Realtime: WebSockets
 - Deployment: Render.com
 
-## Local Setup Instructions
+## 🛠️ Local Setup Instructions
 
-Follow these steps to run the project locally:
+Follow these steps to run the project locally on your machine:
+
+---
 
 ### 1. Clone the Repository
 
-\`\`\`bash
+```bash
 git clone https://github.com/davidereyes2002/gifreactgame_fastapi.git
 cd gifreactgame_fastapi
-\`\`\`
+```
+
+---
 
 ### 2. Create and Activate a Virtual Environment
 
-\`\`\`bash
+```bash
 # Create a virtual environment
 python -m venv venv
+```
 
-# Activate it
-# On macOS/Linux:
-source venv/bin/activate
+Activate it:
 
-# On Windows:
-venv\Scripts\activate
-\`\`\`
+- **On macOS/Linux:**
+  ```bash
+  source venv/bin/activate
+  ```
+
+- **On Windows:**
+  ```bash
+  venv\Scripts\activate
+  ```
+
+---
 
 ### 3. Install Dependencies
 
-\`\`\`bash
+```bash
 pip install -r requirements.txt
-\`\`\`
+```
+
+---
 
 ### 4. Set Up Environment Variables
 
-Create a \`.env\` file in the root directory with the following variables:
+Create a `.env` file in the root directory and add the following:
 
-\`\`\`env
+```env
 DATABASE_URL=your_postgresql_url
 OPENAI_API_KEY=your_openai_api_key
 GIPHY_API_KEY=your_giphy_api_key
 SECRET_KEY=your_secret_key
-\`\`\`
+```
 
-> 🔐 Make sure your \`.env\` file is **not** committed to version control.
+> 🔐 **Note:** Never commit your `.env` file to version control.
+
+---
 
 ### 5. Set Up the Database
 
-Make sure PostgreSQL is running, then:
+Ensure PostgreSQL is running, then:
 
-- Create the database (if not already created):
-- Run the schema setup (Shown in a later section).
+- Create the database (if not already created)
+- Run the schema setup (see **Database Structure** section below)
+
+---
 
 ### 6. Start the Server
 
-\`\`\`bash
+```bash
 uvicorn main:app --reload
-\`\`\`
+```
+
+---
 
 ### 7. Open in Browser
 
-Visit [http://localhost:8000](http://localhost:8000) to access the app.
+Visit the app in your browser at:
+
+[http://localhost:8000](http://localhost:8000)
+
 
 
 ## Database Structure

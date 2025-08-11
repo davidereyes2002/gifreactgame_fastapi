@@ -915,7 +915,7 @@ async def game_page(request: Request, session_id: int, user: str = Depends(auth_
         "request": request,
         "session_id": session_id,
         "round": current_round,
-        "username": user,
+        "user": user,
         "is_host": is_host_row["is_host"],
         "time_per_question": session["time_per_question"],
         "users": users_in_session,
